@@ -2,9 +2,11 @@ package com.lycoris.mochitv.di
 
 import android.content.Context
 import androidx.room.Room
+import coil.ImageLoader
 import com.lycoris.mochitv.data.local.MochiDatabase
 import com.lycoris.mochitv.data.local.dao.AnimeDao
 import com.lycoris.mochitv.data.local.dao.EpisodeDao
+import com.lycoris.mochitv.data.network.UserAgents
 import com.lycoris.mochitv.data.repository.AnimeRepositoryImpl
 import com.lycoris.mochitv.data.scraper.AnimeScraper
 import com.lycoris.mochitv.data.scraper.FlixnetScraper
@@ -115,5 +117,34 @@ abstract class AppModule {
         @Provides
         @Singleton
         fun provideEpisodeDao(db: MochiDatabase): EpisodeDao = db.episodeDao()
+
+        /**
+         * Coil [ImageLoader] with a Referer interceptor.
+         *
+         * voir-anime.to (and most anime CDNs) return 403 for image requests that
+         * lack a matching Referer header. We set the Referer to the origin of each
+         * requested image URL so Coil can load thumbnails from all scraped sources.
+         */
+        @Provides
+        @Singleton
+        fun provideImageLoader(
+            @ApplicationContext context: Context,
+        ): ImageLoader = ImageLoader.Builder(context)
+            .okHttpClient(
+                OkHttpClient.Builder()
+                    .addInterceptor { chain ->
+                        val req = chain.request()
+                        chain.proceed(
+                            req.newBuilder()
+                                .header("Referer", "${req.url.scheme}://${req.url.host}/")
+                                .header("User-Agent", UserAgents.random())
+                                .build()
+                        )
+                    }
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .build()
+            )
+            .build()
     }
 }

@@ -61,7 +61,7 @@ class DetailViewModel @Inject constructor(
                 return@launch
             }
 
-            // 2. Fetch episode list from the scraper (network) and cache to Room
+            // 2. Fetch episodes from scraper — also updates anime synopsis in Room as a side-effect
             val episodes = getEpisodesUseCase(animeId).getOrElse { error ->
                 _uiState.value = DetailUiState.Error(
                     error.message ?: "Could not load episode list"
@@ -69,7 +69,10 @@ class DetailViewModel @Inject constructor(
                 return@launch
             }
 
-            _uiState.value = DetailUiState.Success(anime, episodes)
+            // 3. Re-read anime from cache to pick up the synopsis saved in step 2
+            val animeWithSynopsis = getAnimeDetailUseCase(animeId).getOrDefault(anime)
+
+            _uiState.value = DetailUiState.Success(animeWithSynopsis, episodes)
         }
     }
 }
