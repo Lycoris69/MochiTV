@@ -133,7 +133,7 @@ private fun LatestReleasesContent(
                 .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
         ) {
             Text(
-                text = "Dernières sorties",
+                text = "Last releases",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )

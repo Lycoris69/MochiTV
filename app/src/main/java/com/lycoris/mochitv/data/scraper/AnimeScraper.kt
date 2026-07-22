@@ -57,4 +57,10 @@ interface AnimeScraper {
      * @throws Exception on network errors or unexpected HTML structure.
      */
     suspend fun getLatestReleases(page: Int = 1): List<Anime> = emptyList()
+
+    /**
+     * Fetch the synopsis text from the anime detail page.
+     * Returns an empty string if the source doesn't expose one.
+     */
+    suspend fun getAnimeSynopsis(animePageUrl: String): String = ""
 }

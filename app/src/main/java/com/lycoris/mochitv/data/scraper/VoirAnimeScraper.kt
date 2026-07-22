@@ -68,8 +68,9 @@ class VoirAnimeScraper @Inject constructor(
             val href = card.select("div.post-title a[href]").attr("abs:href")
             val slug = href.trimEnd('/').substringAfterLast('/')
 
-            // Thumbnail uses a plain src attribute (no lazy-loading data-src)
-            val thumbnail = card.select("div.tab-thumb img").attr("abs:src")
+            val thumbImg = card.select("div.tab-thumb img").firstOrNull()
+            val thumbnail = (thumbImg?.attr("abs:data-src")?.takeIf { it.isNotBlank() }
+                ?: thumbImg?.attr("abs:src")).orEmpty()
 
             val genres = card.select("div.post-content_item.mg_genres .summary-content a")
                 .map { it.text().trim() }
@@ -174,6 +175,13 @@ class VoirAnimeScraper @Inject constructor(
         error("VoirAnimeScraper: could not extract stream URL from $episodePageUrl")
     }
 
+    override suspend fun getAnimeSynopsis(animePageUrl: String): String = withContext(Dispatchers.IO) {
+        val doc = fetchDocument(animePageUrl)
+        // Madara theme: synopsis lives in div.summary__content (may contain <p> children)
+        doc.select("div.summary__content").text().trim()
+            .ifBlank { doc.select("div.description-summary").text().trim() }
+    }
+
     /**
      * Fetches a paginated latest-releases page and returns the anime cards.
      *
@@ -199,10 +207,9 @@ class VoirAnimeScraper @Inject constructor(
             val slug = href.trimEnd('/').substringAfterLast('/')
             val title = anchor.text().trim().ifBlank { slug }
 
-            // The homepage cards serve the 110 × 150 px thumbnail directly in `src`.
-            // We prefer the largest srcset variant when available; fall back to src.
             val imgEl = card.select("div.item-thumb img").firstOrNull()
-            val thumbnail = imgEl?.attr("abs:src").orEmpty()
+            val thumbnail = (imgEl?.attr("abs:data-src")?.takeIf { it.isNotBlank() }
+                ?: imgEl?.attr("abs:src")).orEmpty()
 
             Anime(
                 id = "voir_$slug",

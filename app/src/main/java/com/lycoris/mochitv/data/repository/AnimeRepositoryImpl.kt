@@ -73,14 +73,23 @@ class AnimeRepositoryImpl @Inject constructor(
         val scraper = scrapers.firstOrNull { animeId.startsWith(it.site.idPrefix + "_") }
             ?: error("No scraper registered for animeId=$animeId")
 
-        // Reconstruct the anime detail page URL from the id slug.
         val slug = animeId.removePrefix(scraper.site.idPrefix + "_")
         val pageUrl = "${scraper.site.baseUrl}$slug/"
 
-        val episodes = scraper.getEpisodes(pageUrl).sortedBy { it.number }
+        // Fetch episodes and synopsis concurrently from the same page
+        val (episodes, synopsis) = coroutineScope {
+            val episodesDeferred = async { scraper.getEpisodes(pageUrl).sortedBy { it.number } }
+            val synopsisDeferred = async { scraper.getAnimeSynopsis(pageUrl) }
+            episodesDeferred.await() to synopsisDeferred.await()
+        }
 
-        // Cache episodes to Room — PlayerViewModel looks them up by id later
         episodeDao.upsertAll(episodes.map { it.toEntity() })
+
+        // Update the cached anime with the fetched synopsis if we got one
+        if (synopsis.isNotBlank()) {
+            animeDao.getById(animeId)?.copy(synopsis = synopsis)
+                ?.let { animeDao.upsertAll(listOf(it)) }
+        }
 
         episodes
     }
