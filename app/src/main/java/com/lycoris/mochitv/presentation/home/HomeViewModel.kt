@@ -66,40 +66,59 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // ---- Latest releases state ---------------------------------------------
+    // ---- Latest releases pagination state ----------------------------------
 
     private val _latestReleases = MutableStateFlow<List<Anime>>(emptyList())
-    /** Latest-updated anime from voir-anime.to, or an empty list while loading / on error. */
     val latestReleases: StateFlow<List<Anime>> = _latestReleases.asStateFlow()
 
     private val _isLatestLoading = MutableStateFlow(false)
-    /** True while the voir-anime.to homepage is being fetched. */
+    /** True while page 1 is being fetched (initial load or refresh). */
     val isLatestLoading: StateFlow<Boolean> = _isLatestLoading.asStateFlow()
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    /** True while an additional page is being appended. */
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    private var latestPage = 1
+    private var hasMorePages = true
+    private var latestJob: kotlinx.coroutines.Job? = null
 
     init {
         observeSearchQuery()
         loadLatestReleases()
     }
 
-    /**
-     * Called by the UI whenever the text in the search field changes.
-     * Clears results immediately when the query is blank so the screen
-     * returns to [HomeUiState.Idle] without waiting for the debounce.
-     */
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
-        if (query.isBlank()) {
-            _uiState.update { HomeUiState.Idle }
-        }
+        if (query.isBlank()) _uiState.update { HomeUiState.Idle }
     }
 
-    /**
-     * Re-fetch the latest releases from voir-anime.to.
-     * Safe to call from the UI (e.g. a "Refresh" button); no-ops if already loading.
-     */
+    /** Reset to page 1 and re-fetch. Safe to call from the refresh button. */
     fun refreshLatest() {
         if (_isLatestLoading.value) return
+        latestPage = 1
+        hasMorePages = true
+        _latestReleases.value = emptyList()
         loadLatestReleases()
+    }
+
+    /** Append the next page. Called by the UI when the end of the list is reached. */
+    fun loadMoreLatest() {
+        if (_isLoadingMore.value || _isLatestLoading.value || !hasMorePages) return
+        latestPage++
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            getLatestReleasesUseCase(latestPage)
+                .onSuccess { results ->
+                    if (results.isEmpty()) {
+                        hasMorePages = false
+                    } else {
+                        _latestReleases.value = _latestReleases.value + results
+                    }
+                }
+                .onFailure { latestPage-- } // retry same page next time
+            _isLoadingMore.value = false
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -107,11 +126,16 @@ class HomeViewModel @Inject constructor(
     // -------------------------------------------------------------------------
 
     private fun loadLatestReleases() {
-        viewModelScope.launch {
+        latestJob?.cancel()
+        latestJob = viewModelScope.launch {
             _isLatestLoading.value = true
-            getLatestReleasesUseCase()
-                .onSuccess { results -> _latestReleases.value = results }
-                .onFailure { /* keep whatever was loaded before; UI still shows stale data */ }
+            getLatestReleasesUseCase(1)
+                .onSuccess { results ->
+                    _latestReleases.value = results
+                    hasMorePages = results.isNotEmpty()
+                    latestPage = 1
+                }
+                .onFailure { /* keep stale data visible */ }
             _isLatestLoading.value = false
         }
     }

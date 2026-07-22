@@ -86,5 +86,5 @@ interface AnimeRepository {
      * @return [Result.success] with a non-empty list on success, or
      *         [Result.failure] on network / parse error.
      */
-    suspend fun getLatestReleases(): Result<List<Anime>>
+    suspend fun getLatestReleases(page: Int = 1): Result<List<Anime>>
 }

@@ -56,5 +56,5 @@ interface AnimeScraper {
      *
      * @throws Exception on network errors or unexpected HTML structure.
      */
-    suspend fun getLatestReleases(): List<Anime> = emptyList()
+    suspend fun getLatestReleases(page: Int = 1): List<Anime> = emptyList()
 }

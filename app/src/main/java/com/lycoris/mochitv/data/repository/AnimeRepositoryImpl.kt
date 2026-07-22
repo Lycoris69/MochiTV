@@ -91,16 +91,13 @@ class AnimeRepositoryImpl @Inject constructor(
         scraper.getStreamUrl(episode.pageUrl)
     }
 
-    override suspend fun getLatestReleases(): Result<List<Anime>> = runCatching {
-        // Latest-releases are sourced exclusively from voir-anime.to; other scrapers
-        // return emptyList() for this call, so filtering here keeps intent explicit.
+    override suspend fun getLatestReleases(page: Int): Result<List<Anime>> = runCatching {
         val voirScraper = scrapers.firstOrNull { it.site == SourceSite.VOIR_ANIME }
             ?: error("VoirAnimeScraper is not registered in the Hilt multi-binding")
 
-        val results = voirScraper.getLatestReleases()
+        val results = voirScraper.getLatestReleases(page)
 
-        // Upsert into Room so the detail screen can load them from cache
-        animeDao.upsertAll(results.map { it.toEntity() })
+        if (results.isNotEmpty()) animeDao.upsertAll(results.map { it.toEntity() })
 
         results
     }

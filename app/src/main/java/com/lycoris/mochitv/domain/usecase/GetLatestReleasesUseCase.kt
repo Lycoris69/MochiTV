@@ -20,5 +20,5 @@ class GetLatestReleasesUseCase @Inject constructor(
      * @return [Result.success] with a (possibly empty) list on success, or
      *         [Result.failure] if the network request or HTML parse failed.
      */
-    suspend operator fun invoke(): Result<List<Anime>> = repository.getLatestReleases()
+    suspend operator fun invoke(page: Int = 1): Result<List<Anime>> = repository.getLatestReleases(page)
 }

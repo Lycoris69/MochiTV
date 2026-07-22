@@ -167,7 +167,7 @@ class FlixnetScraper @Inject constructor(
      * exclusively from [VoirAnimeScraper]; this implementation is intentionally
      * a no-op so the Hilt multi-binding stays consistent.
      */
-    override suspend fun getLatestReleases(): List<Anime> = emptyList()
+    override suspend fun getLatestReleases(page: Int): List<Anime> = emptyList()
 
     // -------------------------------------------------------------------------
     // Helpers

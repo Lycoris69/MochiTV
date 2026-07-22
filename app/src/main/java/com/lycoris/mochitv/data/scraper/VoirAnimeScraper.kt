@@ -175,16 +175,19 @@ class VoirAnimeScraper @Inject constructor(
     }
 
     /**
-     * Fetches the voir-anime.to homepage and returns the latest-updated anime
-     * series displayed in the main "Dernières sorties" widget.
+     * Fetches a paginated latest-releases page and returns the anime cards.
      *
+     * URL pattern: `https://voir-anime.to/` (page 1) or `https://voir-anime.to/page/{n}/`
      * Selectors (confirmed 2026-07-22):
      *  - Card root : `div.page-item-detail`
      *  - Thumbnail : `div.item-thumb img` → `src` (no lazy-load)
      *  - Title/URL : `div.post-title.font-title a[href]`
+     *
+     * Returns an empty list when [page] exceeds available pages (end of feed).
      */
-    override suspend fun getLatestReleases(): List<Anime> = withContext(Dispatchers.IO) {
-        val doc = fetchDocument(BASE_URL)
+    override suspend fun getLatestReleases(page: Int): List<Anime> = withContext(Dispatchers.IO) {
+        val url = if (page == 1) BASE_URL else "${BASE_URL}page/$page/"
+        val doc = fetchDocument(url)
 
         doc.select("div.page-item-detail").mapNotNull { card ->
             val anchor = card.select("div.post-title.font-title a[href]").firstOrNull()
