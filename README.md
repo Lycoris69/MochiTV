@@ -74,11 +74,29 @@ IDs are source-prefixed (e.g. `flixnet_naruto`, `voir_naruto`) so results from d
 
 ---
 
+## Changelog
+
+### v1.0.5
+- Thumbnails now load at full resolution (460×630 px) by parsing the `srcset` attribute instead of the small default `src` (110×150 px)
+
+### v1.0.4
+- Fixed synopsis not appearing on the detail screen
+- Fixed images not loading (added Referer header to Coil image requests)
+
+### v1.0.3 / v1.0.2
+- Added infinite scroll for latest releases on the home screen
+- Fixed empty video player — stream URLs now extracted via two-level iframe resolution
+
+### v1.0.1
+- Added latest releases section on the home screen (sourced from voir-anime.to)
+- Added anime thumbnails in search results and detail screen
+
+### v1.0.0
+- Initial release: search, anime detail, episode list, video playback
+
+---
+
 ## Roadmap
 
-- [ ] Room integration for offline catalogue cache
-- [ ] Anime detail screen
-- [ ] Episode list screen
-- [ ] Media3 player screen
 - [ ] Search history
 - [ ] Download support
