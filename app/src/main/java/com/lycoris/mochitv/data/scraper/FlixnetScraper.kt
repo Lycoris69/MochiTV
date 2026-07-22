@@ -13,21 +13,30 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import javax.inject.Inject
 
-private const val BASE_URL = "https://flixnet.site/animesama/"
-
 /**
- * Scraper for [https://flixnet.site/animesama/].
+ * Scraper for the Anime Sama catalogue.
  *
- * ## CSS selectors (update when the site's HTML changes)
- * | Page          | Elements           | Notes                              |
- * |---------------|--------------------|------------------------------------|
- * | Search results| `.anime-card`      | Each card is one series            |
- * | Anime title   | `.anime-title`     | Inside each card                   |
- * | Episode list  | `.episode-item`    | On the anime detail page           |
- * | Stream source | `iframe[src]`      | Strategy 1 (preferred)             |
- * | Stream source | `var videoUrl`     | Strategy 2 (JavaScript fallback)   |
+ * The original domain listed in the project brief, [https://flixnet.site/animesama/], is a
+ * thin HTML shell that embeds the real site in a full-page `<iframe>`.  All content lives at
+ * [https://animesamatv.su/], which we target directly.
  *
- * All HTTP calls use [UserAgents.random] to rotate the User-Agent header.
+ * The site runs the custom "animestream" WordPress theme.
+ *
+ * ## Verified CSS selectors (confirmed against live HTML, 2026-07-22)
+ * | Page            | Selector                        | Value / notes                         |
+ * |-----------------|---------------------------------|---------------------------------------|
+ * | Search results  | `article.bs`                    | One card per series in `div.listupd`  |
+ * | Card link       | `a.tip[href]`                   | Also carries `title` attribute        |
+ * | Card title      | `div.tt`                        | Text node; first line before `<h2>`   |
+ * | Card thumbnail  | `img.thumb`                     | Direct `src` (no lazy-load attr)      |
+ * | Card status     | `span.epx`                      | "Ongoing" / "Completed"               |
+ * | Episode list    | `div.eplister ul li`            | `data-index` attribute on each `<li>` |
+ * | Episode number  | `div.epl-num`                   | Plain integer text                    |
+ * | Episode title   | `div.epl-title`                 | May repeat the number ("Episode 5")   |
+ * | Episode link    | `a[href]`                       | Inside each `<li>`                    |
+ *
+ * Synopsis, genres, rating, and episode count are **not present** in search-result cards.
+ * They are available on individual anime detail pages (not yet scraped here).
  */
 class FlixnetScraper @Inject constructor(
     private val okHttpClient: OkHttpClient,
@@ -40,22 +49,33 @@ class FlixnetScraper @Inject constructor(
     // -------------------------------------------------------------------------
 
     override suspend fun search(query: String): List<Anime> = withContext(Dispatchers.IO) {
+        // Note: flixnet.site/animesama/ is only an iframe wrapper; we query
+        // animesamatv.su directly so Jsoup can parse the real search results.
         val url = "${BASE_URL}?s=${query.trim().replace(" ", "+")}"
         val doc = fetchDocument(url)
 
-        doc.select(".anime-card").map { card ->
-            val href = card.select("a[href]").attr("abs:href")
+        doc.select("article.bs").map { card ->
+            val anchor = card.select("a.tip").first()
+            val href = anchor?.attr("abs:href") ?: ""
             val slug = href.trimEnd('/').substringAfterLast('/')
+
+            // The title appears as a text node inside div.tt before the <h2> child.
+            // Jsoup's .text() collapses all text nodes inside the element, giving us
+            // the title twice ("ONE PIECE ONE PIECE").  ownText() returns only the
+            // direct text node, which is the clean title.
+            val title = card.select("div.tt").first()?.ownText()?.trim()
+                ?: anchor?.attr("title")?.trim()
+                ?: slug
 
             Anime(
                 id = "flixnet_$slug",
-                title = card.select(".anime-title").text().ifBlank { slug },
-                thumbnailUrl = card.select("img").attr("abs:src"),
-                synopsis = card.select(".anime-synopsis").text(),
-                genres = card.select(".genre-tag").map { it.text() },
-                rating = card.select(".anime-rating").text().toFloatOrNull(),
-                episodeCount = card.select(".ep-count").text().toIntOrNull(),
-                status = parseStatus(card.select(".anime-status").text()),
+                title = title.ifBlank { slug },
+                thumbnailUrl = card.select("img.thumb").attr("abs:src"),
+                synopsis = "",       // Not available in search cards
+                genres = emptyList(), // Not available in search cards
+                rating = null,        // Not available in search cards
+                episodeCount = null,  // Not available in search cards
+                status = parseStatus(card.select("span.epx").text()),
                 sourceUrl = href,
                 sourceSite = SourceSite.FLIXNET,
             )
@@ -66,17 +86,20 @@ class FlixnetScraper @Inject constructor(
         val doc = fetchDocument(animePageUrl)
         val animeSlug = animePageUrl.trimEnd('/').substringAfterLast('/')
 
-        doc.select(".episode-item").mapIndexed { index, element ->
+        // Episode list: div.eplister > ul > li[data-index]
+        // Each li contains: a[href], div.epl-num, div.epl-title, div.epl-date
+        doc.select("div.eplister ul li").mapIndexed { index, element ->
             val href = element.select("a[href]").attr("abs:href")
-            val epNum = element.select(".ep-number").text().toIntOrNull() ?: (index + 1)
+            val epNum = element.select("div.epl-num").text().trim().toIntOrNull() ?: (index + 1)
+            val epTitle = element.select("div.epl-title").text().trim().ifBlank { null }
 
             Episode(
                 id = "flixnet_ep_${animeSlug}_$epNum",
                 animeId = "flixnet_$animeSlug",
                 number = epNum,
-                title = element.select(".ep-title").text().ifBlank { null },
-                thumbnailUrl = element.select("img").attr("abs:src").ifBlank { null },
-                durationSeconds = null, // Not typically present in episode list HTML
+                title = epTitle,
+                thumbnailUrl = null, // Not present in episode list
+                durationSeconds = null,
                 pageUrl = href,
                 sourceSite = SourceSite.FLIXNET,
             )
@@ -135,5 +158,10 @@ class FlixnetScraper @Inject constructor(
         raw.contains("ongoing", ignoreCase = true)   -> AnimeStatus.ONGOING
         raw.contains("completed", ignoreCase = true) -> AnimeStatus.COMPLETED
         else -> AnimeStatus.UNKNOWN
+    }
+
+    private companion object {
+        // The real content domain; flixnet.site/animesama/ is only an iframe wrapper.
+        const val BASE_URL = "https://animesamatv.su/"
     }
 }

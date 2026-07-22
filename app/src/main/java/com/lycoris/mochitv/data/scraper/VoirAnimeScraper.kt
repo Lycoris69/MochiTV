@@ -18,18 +18,27 @@ private const val BASE_URL = "https://voir-anime.to/"
 /**
  * Scraper for [https://voir-anime.to/].
  *
- * This site is predominantly French; the Accept-Language header is set
- * accordingly to receive French-language metadata.
+ * The site runs the Madara WordPress theme (wp-manga custom post type).
+ * All pages are server-side rendered; no JS execution is required.
  *
- * ## CSS selectors (update when the site's HTML changes)
- * | Page          | Elements          | Notes                               |
- * |---------------|-------------------|-------------------------------------|
- * | Search results| `.film-item`      | Each card is one series             |
- * | Anime title   | `.film-name`      | Inside each card                    |
- * | Thumbnail     | `img[data-src]`   | Lazy-loaded; fall back to `img[src]`|
- * | Episode list  | `.ep-item`        | On the anime detail page            |
- * | Stream source | `iframe[src]`     | Strategy 1 (preferred)              |
- * | Stream source | `file:`           | Strategy 2 (JWPlayer JS key)        |
+ * This site is predominantly French; the Accept-Language header is set
+ * accordingly so that French-language metadata is returned.
+ *
+ * ## Verified CSS selectors (confirmed against live HTML, 2026-07-22)
+ * | Page            | Selector                                          | Notes                                  |
+ * |-----------------|---------------------------------------------------|----------------------------------------|
+ * | Search results  | `div.row.c-tabs-item__content`                    | One row per series; all rows share a single `div.c-tabs-item` parent |
+ * | Card link/title | `div.post-title a[href]`                          | Both href and display title            |
+ * | Card thumbnail  | `div.tab-thumb img`                               | Standard `src` attribute (no lazy)     |
+ * | Card genres     | `div.post-content_item.mg_genres .summary-content a` | Each genre is a link                |
+ * | Card status     | `div.post-content_item.mg_status .summary-content`| "TERMINÉ" / "EN COURS" (French)       |
+ * | Episode list    | `li.wp-manga-chapter`                             | Madara theme; episodes in static HTML  |
+ * | Episode link    | `a[href]`                                         | Inside each `<li>`                     |
+ * | Episode number  | Extracted from URL slug via last `\d+` match      | e.g. "naruto-220-vostfr" → 220         |
+ * | Episode title   | `a` element text (trimmed)                        | e.g. "Naruto - 220 VOSTFR - 220"       |
+ *
+ * Synopsis, rating, and episode count are **not present** in search-result cards.
+ * The search URL pattern `?s={query}` is correct (WordPress native search).
  */
 class VoirAnimeScraper @Inject constructor(
     private val okHttpClient: OkHttpClient,
@@ -45,23 +54,31 @@ class VoirAnimeScraper @Inject constructor(
         val url = "${BASE_URL}?s=${query.trim().replace(" ", "+")}"
         val doc = fetchDocument(url)
 
-        doc.select(".film-item").map { card ->
-            val href = card.select("a[href]").attr("abs:href")
+        // The Madara theme wraps ALL results in ONE div.c-tabs-item parent.
+        // Each individual result is a div.row.c-tabs-item__content inside that parent.
+        doc.select("div.row.c-tabs-item__content").map { card ->
+            val href = card.select("div.post-title a[href]").attr("abs:href")
             val slug = href.trimEnd('/').substringAfterLast('/')
 
-            // Voir-anime lazy-loads thumbnails via data-src attribute
-            val thumbnail = card.select("img[data-src]").attr("abs:data-src")
-                .ifBlank { card.select("img").attr("abs:src") }
+            // Thumbnail uses a plain src attribute (no lazy-loading data-src)
+            val thumbnail = card.select("div.tab-thumb img").attr("abs:src")
+
+            val genres = card.select("div.post-content_item.mg_genres .summary-content a")
+                .map { it.text().trim() }
+                .filter { it.isNotBlank() }
+
+            val statusText = card.select("div.post-content_item.mg_status .summary-content")
+                .text().trim()
 
             Anime(
                 id = "voir_$slug",
-                title = card.select(".film-name").text().ifBlank { slug },
+                title = card.select("div.post-title a").text().trim().ifBlank { slug },
                 thumbnailUrl = thumbnail,
-                synopsis = card.select(".film-synopsis").text(),
-                genres = card.select(".genre-tag").map { it.text() },
-                rating = card.select(".film-rating").text().toFloatOrNull(),
-                episodeCount = card.select(".ep-count").text().toIntOrNull(),
-                status = parseStatus(card.select(".film-status").text()),
+                synopsis = "",       // Not available in search cards
+                genres = genres,
+                rating = null,        // Not available in search cards
+                episodeCount = null,  // Not available in search cards
+                status = parseStatus(statusText),
                 sourceUrl = href,
                 sourceSite = SourceSite.VOIR_ANIME,
             )
@@ -72,17 +89,23 @@ class VoirAnimeScraper @Inject constructor(
         val doc = fetchDocument(animePageUrl)
         val animeSlug = animePageUrl.trimEnd('/').substringAfterLast('/')
 
-        doc.select(".ep-item").mapIndexed { index, element ->
+        // Madara theme episode list: ul.version-chap > li.wp-manga-chapter
+        // The episode number is not in a dedicated element; it's embedded in the
+        // URL slug (e.g. "naruto-220-vostfr") and in the link text.  We extract
+        // it from the slug's last numeric group for reliability.
+        doc.select("li.wp-manga-chapter").mapIndexed { index, element ->
             val href = element.select("a[href]").attr("abs:href")
-            val epNum = element.select(".ep-number").text().toIntOrNull() ?: (index + 1)
+            val epSlug = href.trimEnd('/').substringAfterLast('/')
+            val epNum = Regex("""\d+""").findAll(epSlug).lastOrNull()?.value?.toIntOrNull()
+                ?: (index + 1)
+            val epTitle = element.select("a").text().trim().ifBlank { null }
 
             Episode(
                 id = "voir_ep_${animeSlug}_$epNum",
                 animeId = "voir_$animeSlug",
                 number = epNum,
-                title = element.select(".ep-title").text().ifBlank { null },
-                thumbnailUrl = element.select("img[data-src]").attr("abs:data-src")
-                    .ifBlank { element.select("img").attr("abs:src").ifBlank { null } },
+                title = epTitle,
+                thumbnailUrl = null, // Not present in episode list rows
                 durationSeconds = null,
                 pageUrl = href,
                 sourceSite = SourceSite.VOIR_ANIME,

@@ -20,6 +20,9 @@ interface AnimeRepository {
     /**
      * Search for anime matching [query].
      *
+     * Results are written to the local Room cache as a side-effect so they are
+     * immediately available for offline browsing via [observeCachedAnime].
+     *
      * @param query  User-supplied search string.
      * @param source Optionally restrict results to a single site; null means all sources.
      * @return [Result.success] with a (possibly empty) list, or [Result.failure] on error.
@@ -31,6 +34,9 @@ interface AnimeRepository {
 
     /**
      * Fetch all episodes for the anime identified by [animeId].
+     *
+     * Episodes are written to the local Room cache as a side-effect so
+     * [getEpisodeById] can serve them without an additional network request.
      *
      * @param animeId The [Anime.id] of the target series.
      */
@@ -51,4 +57,23 @@ interface AnimeRepository {
      * again whenever the cache is updated.
      */
     fun observeCachedAnime(): Flow<List<Anime>>
+
+    /**
+     * Return a single [Anime] by [id] from the local Room cache.
+     *
+     * The cache is populated by [searchAnime].  If the anime is not cached,
+     * [Result.failure] is returned — navigate through Home/search first to
+     * populate the cache before navigating to the detail screen.
+     */
+    suspend fun getAnimeById(id: String): Result<Anime>
+
+    /**
+     * Return a single [Episode] by [id] from the local Room cache.
+     *
+     * The cache is populated as a side-effect of [getEpisodes].  Looking up an
+     * episode by id allows [com.lycoris.mochitv.presentation.player.PlayerViewModel]
+     * to retrieve the full [Episode] object (including [Episode.pageUrl]) from
+     * the cache without a redundant network round-trip.
+     */
+    suspend fun getEpisodeById(id: String): Result<Episode>
 }

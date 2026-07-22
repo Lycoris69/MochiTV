@@ -1,5 +1,10 @@
 package com.lycoris.mochitv.di
 
+import android.content.Context
+import androidx.room.Room
+import com.lycoris.mochitv.data.local.MochiDatabase
+import com.lycoris.mochitv.data.local.dao.AnimeDao
+import com.lycoris.mochitv.data.local.dao.EpisodeDao
 import com.lycoris.mochitv.data.repository.AnimeRepositoryImpl
 import com.lycoris.mochitv.data.scraper.AnimeScraper
 import com.lycoris.mochitv.data.scraper.FlixnetScraper
@@ -9,6 +14,7 @@ import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import okhttp3.OkHttpClient
@@ -84,5 +90,30 @@ abstract class AppModule {
                 .followSslRedirects(true)
                 .build()
         }
+
+        /**
+         * Singleton [MochiDatabase] backed by a named file so the cache
+         * survives app restarts.
+         *
+         * [allowMainThreadQueries] is intentionally omitted — all DAO calls
+         * are `suspend` functions dispatched from coroutines on IO threads.
+         */
+        @Provides
+        @Singleton
+        fun provideMochiDatabase(
+            @ApplicationContext context: Context,
+        ): MochiDatabase = Room.databaseBuilder(
+            context,
+            MochiDatabase::class.java,
+            "mochi_db",
+        ).build()
+
+        @Provides
+        @Singleton
+        fun provideAnimeDao(db: MochiDatabase): AnimeDao = db.animeDao()
+
+        @Provides
+        @Singleton
+        fun provideEpisodeDao(db: MochiDatabase): EpisodeDao = db.episodeDao()
     }
 }

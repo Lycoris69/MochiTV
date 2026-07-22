@@ -26,6 +26,9 @@ room = "2.6.1"
 okhttp = "4.12.0"
 jsoup  = "1.18.3"
 
+# ---- JSON serialisation (Room type converter) ------------------------------
+gson = "2.10.1"
+
 # ---- Video playback --------------------------------------------------------
 media3 = "1.4.1"
 
@@ -33,9 +36,10 @@ media3 = "1.4.1"
 coil = "2.7.0"
 
 # ---- Test ------------------------------------------------------------------
-junit        = "4.13.2"
-junitAndroid = "1.2.1"
-espresso     = "3.6.1"
+junit              = "4.13.2"
+junitAndroid       = "1.2.1"
+espresso           = "3.6.1"
+coroutinesTest     = "1.8.1"
 
 [libraries]
 # AndroidX core
@@ -78,6 +82,9 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 # HTML parsing
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 
+# JSON (Room type converters)
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+
 # Video playback
 media3-exoplayer      = { group = "androidx.media3", name = "media3-exoplayer",       version.ref = "media3" }
 media3-exoplayer-hls  = { group = "androidx.media3", name = "media3-exoplayer-hls",   version.ref = "media3" }
@@ -88,9 +95,10 @@ media3-ui             = { group = "androidx.media3", name = "media3-ui",        
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
 # Tests
-junit                = { group = "junit",                  name = "junit",          version.ref = "junit" }
-androidx-junit       = { group = "androidx.test.ext",      name = "junit",          version.ref = "junitAndroid" }
-androidx-espresso    = { group = "androidx.test.espresso", name = "espresso-core",  version.ref = "espresso" }
+junit                    = { group = "junit",                          name = "junit",                       version.ref = "junit" }
+androidx-junit           = { group = "androidx.test.ext",              name = "junit",                       version.ref = "junitAndroid" }
+androidx-espresso        = { group = "androidx.test.espresso",         name = "espresso-core",               version.ref = "espresso" }
+kotlinx-coroutines-test  = { group = "org.jetbrains.kotlinx",         name = "kotlinx-coroutines-test",     version.ref = "coroutinesTest" }
 
 [plugins]
 android-application = { id = "com.android.application",               version.ref = "agp" }

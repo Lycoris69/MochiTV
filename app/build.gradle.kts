@@ -89,6 +89,9 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.jsoup)
 
+    // JSON serialisation for Room type converters
+    implementation(libs.gson)
+
     // Video playback
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
@@ -100,6 +103,7 @@ dependencies {
 
     // Unit tests
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 
     // Instrumented tests
     androidTestImplementation(libs.androidx.junit)
@@ -110,4 +114,11 @@ dependencies {
     // Debug-only
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+// Show stdout from unit tests in the Gradle console so scraper diagnostics are visible
+tasks.withType<Test> {
+    testLogging {
+        showStandardStreams = true
+    }
 }

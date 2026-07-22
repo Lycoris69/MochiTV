@@ -40,10 +40,14 @@ import com.lycoris.mochitv.domain.model.Anime
  *
  * State is held in [HomeViewModel] and collected here as a snapshot;
  * the composable is stateless and only calls ViewModel methods on user actions.
+ *
+ * @param onAnimeClick Called with the tapped anime's id so the nav graph can
+ *                     push the detail screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    onAnimeClick: (animeId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -81,7 +85,10 @@ fun HomeScreen(
                 is HomeUiState.Idle    -> IdleContent()
                 is HomeUiState.Loading -> LoadingContent()
                 is HomeUiState.Error   -> ErrorContent(message = state.message)
-                is HomeUiState.Success -> AnimeGrid(animeList = state.results)
+                is HomeUiState.Success -> AnimeGrid(
+                    animeList = state.results,
+                    onAnimeClick = onAnimeClick,
+                )
             }
         }
     }
@@ -132,7 +139,10 @@ private fun ErrorContent(message: String) {
 }
 
 @Composable
-private fun AnimeGrid(animeList: List<Anime>) {
+private fun AnimeGrid(
+    animeList: List<Anime>,
+    onAnimeClick: (animeId: String) -> Unit,
+) {
     if (animeList.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -155,14 +165,20 @@ private fun AnimeGrid(animeList: List<Anime>) {
         modifier = Modifier.fillMaxSize(),
     ) {
         items(animeList, key = { it.id }) { anime ->
-            AnimeCard(anime = anime)
+            AnimeCard(
+                anime = anime,
+                onClick = { onAnimeClick(anime.id) },
+            )
         }
     }
 }
 
 @Composable
-private fun AnimeCard(anime: Anime) {
-    Card {
+private fun AnimeCard(
+    anime: Anime,
+    onClick: () -> Unit,
+) {
+    Card(onClick = onClick) {
         Column {
             AsyncImage(
                 model = anime.thumbnailUrl.ifBlank { null },
