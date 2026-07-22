@@ -1,6 +1,10 @@
 package com.lycoris.mochitv.data.scraper
 
 import com.lycoris.mochitv.data.network.UserAgents
+import com.lycoris.mochitv.data.scraper.extractor.GenericExtractor
+import com.lycoris.mochitv.data.scraper.extractor.StreamExtractor
+import com.lycoris.mochitv.data.scraper.extractor.StreamtapeExtractor
+import com.lycoris.mochitv.data.scraper.extractor.VidmolyExtractor
 import com.lycoris.mochitv.domain.model.Anime
 import com.lycoris.mochitv.domain.model.AnimeStatus
 import com.lycoris.mochitv.domain.model.Episode
@@ -118,27 +122,53 @@ class VoirAnimeScraper @Inject constructor(
     }
 
     override suspend fun getStreamUrl(episodePageUrl: String): String = withContext(Dispatchers.IO) {
-        val doc = fetchDocument(episodePageUrl)
+        val episodePage = fetchDocument(episodePageUrl)
 
-        // Strategy 1: <iframe src="..."> embed
-        doc.select("iframe[src]").firstOrNull()
+        // ---------------------------------------------------------------------------
+        // Two-step extraction: episode page → embed page → direct stream URL
+        // ---------------------------------------------------------------------------
+
+        // Step 1: resolve the first iframe embed URL from the episode page.
+        //
+        // voir-anime.to (Madara theme) exposes all available player sources in the
+        // `thisChapterSources` JS variable, with the primary/default player rendered
+        // as a plain <iframe> element in the DOM.  We take the first iframe.
+        val embedUrl = episodePage.select("iframe[src]").firstOrNull()
             ?.attr("abs:src")
             ?.takeIf { it.isNotBlank() }
-            ?.let { return@withContext it }
 
-        // Strategy 2: JWPlayer object  →  file:"https://...m3u8"
-        val scripts = doc.select("script").joinToString("\n") { it.data() }
+        if (embedUrl != null) {
+            // Step 2: fetch the embed page and run extractors in priority order.
+            runCatching {
+                val embedHtml = fetchRaw(embedUrl, referer = episodePageUrl)
+                val extractors: List<StreamExtractor> = listOf(
+                    VidmolyExtractor,    // vidmoly.biz  — JWPlayer sources array
+                    StreamtapeExtractor, // streamtape.com — robotlink JS obfuscation
+                    GenericExtractor,    // any host      — file:"..." / var fileUrl = "..."
+                )
+                for (extractor in extractors) {
+                    val url = extractor.extract(embedUrl, embedHtml)
+                    if (!url.isNullOrBlank()) return@withContext url
+                }
+            }
+            // If the embed page fetch or all extractors failed, fall through to legacy strategies.
+        }
+
+        // ---------------------------------------------------------------------------
+        // Legacy fallback: scan the episode page scripts directly.
+        // Handles sites that embed the stream URL in the page itself rather than in
+        // a nested iframe embed page.
+        // ---------------------------------------------------------------------------
+        val scripts = episodePage.select("script").joinToString("\n") { it.data() }
+
+        // Legacy strategy 2: JWPlayer file:"https://...m3u8"
         Regex("""file\s*:\s*["']([^"']+\.(?:mp4|m3u8|mkv)[^"']*)["']""")
-            .find(scripts)
-            ?.groupValues?.get(1)
-            ?.takeIf { it.isNotBlank() }
+            .find(scripts)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
             ?.let { return@withContext it }
 
-        // Strategy 3: plain JS string assignment  →  var src = "https://..."
+        // Legacy strategy 3: plain JS variable  →  var src = "https://..."
         Regex("""(?:src|videoUrl|streamUrl)\s*=\s*["']([^"']+)["']""")
-            .find(scripts)
-            ?.groupValues?.get(1)
-            ?.takeIf { it.isNotBlank() }
+            .find(scripts)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
             ?.let { return@withContext it }
 
         error("VoirAnimeScraper: could not extract stream URL from $episodePageUrl")
@@ -205,6 +235,32 @@ class VoirAnimeScraper @Inject constructor(
                 "VoirAnimeScraper: HTTP ${response.code} fetching $url"
             }
             Jsoup.parse(response.body!!.string(), BASE_URL)
+        }
+    }
+
+    /**
+     * Fetches [url] and returns the raw response body as a string.
+     *
+     * Used for embed pages where we only need plain text/HTML for regex matching
+     * (no Jsoup DOM parsing required).  The [referer] is passed as the HTTP
+     * `Referer` header so that embed hosts that check the origin accept the request.
+     *
+     * @throws IllegalStateException if the HTTP response is not 2xx.
+     */
+    private fun fetchRaw(url: String, referer: String): String {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", UserAgents.random())
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", referer)
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            check(response.isSuccessful) {
+                "VoirAnimeScraper: HTTP ${response.code} fetching embed page $url"
+            }
+            response.body!!.string()
         }
     }
 

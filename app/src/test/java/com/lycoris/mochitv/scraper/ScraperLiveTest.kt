@@ -180,6 +180,65 @@ class ScraperLiveTest {
     }
 
     // -------------------------------------------------------------------------
+    // Stream URL extraction test — validates the two-step embed extraction
+    // -------------------------------------------------------------------------
+
+    /**
+     * End-to-end test for [VoirAnimeScraper.getStreamUrl].
+     *
+     * Flow:
+     *   1. Search "naruto" on voir-anime.to and take the first result.
+     *   2. Fetch its episode list and take the last entry (episode 1 on voir-anime
+     *      appears at the bottom of the list, newest-first order).
+     *   3. Call getStreamUrl and assert the result is a playable URL.
+     *
+     * Run with:
+     *   ./gradlew test --tests "com.lycoris.mochitv.scraper.ScraperLiveTest.testGetStreamUrl" --info 2>&1 | tail -60
+     */
+    @Test
+    fun testGetStreamUrl() = runBlocking {
+        println("\n========== VOIR-ANIME getStreamUrl (naruto ep 1) ==========")
+        try {
+            // Step 1: find Naruto's anime page
+            val results = voirAnime.search("naruto")
+            val naruto = results.firstOrNull { it.title.contains("naruto", ignoreCase = true) }
+                ?: results.firstOrNull()
+                ?: error("No search results for 'naruto'")
+            println("Anime: ${naruto.title}")
+            println("URL:   ${naruto.sourceUrl}")
+
+            // Step 2: get episode list and pick episode 1 (last in list, newest-first)
+            val episodes = voirAnime.getEpisodes(naruto.sourceUrl)
+            println("Episode count: ${episodes.size}")
+            val episode = episodes.minByOrNull { it.number }
+                ?: error("No episodes found")
+            println("Episode: #${episode.number} — ${episode.pageUrl}")
+
+            // Step 3: extract the stream URL
+            val streamUrl = voirAnime.getStreamUrl(episode.pageUrl)
+            println("Stream URL: $streamUrl")
+
+            // Assertions
+            assert(streamUrl.startsWith("http")) {
+                "Stream URL should start with http, got: $streamUrl"
+            }
+            val hasKnownExtension = streamUrl.contains(".m3u8") ||
+                    streamUrl.contains(".mp4") ||
+                    streamUrl.contains("googlevideo.com") ||
+                    streamUrl.contains("streamtape.com") ||
+                    streamUrl.contains("vmeas.cloud")
+            assert(hasKnownExtension) {
+                "Stream URL does not look like a playable media URL: $streamUrl"
+            }
+            println("Validation PASSED: stream URL looks playable")
+        } catch (e: Exception) {
+            println("FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+        println("============================================================\n")
+    }
+
+    // -------------------------------------------------------------------------
     // Helper
     // -------------------------------------------------------------------------
 
