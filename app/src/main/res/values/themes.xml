@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Activity window theme. Compose draws all UI, so this only needs to:
+          1. Remove the ActionBar (NoActionBar parent).
+          2. Provide a neutral window background colour while Compose initialises.
+        No AppCompat dependency is required — android:Theme.Material is a platform theme.
+    -->
+    <style name="Theme.MochiTV" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

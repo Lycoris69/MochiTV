@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MochiTV</string>
+    <string name="search_hint">Search anime…</string>
+    <string name="idle_prompt">Search for your favourite anime above.</string>
+    <string name="error_prefix">Error: %s</string>
+</resources>
