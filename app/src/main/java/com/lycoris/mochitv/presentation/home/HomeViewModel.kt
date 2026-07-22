@@ -3,6 +3,7 @@ package com.lycoris.mochitv.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lycoris.mochitv.domain.model.Anime
+import com.lycoris.mochitv.domain.usecase.GetLatestReleasesUseCase
 import com.lycoris.mochitv.domain.usecase.SearchAnimeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 // ---- UI state --------------------------------------------------------------
@@ -55,6 +57,7 @@ sealed interface HomeUiState {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val searchAnimeUseCase: SearchAnimeUseCase,
+    private val getLatestReleasesUseCase: GetLatestReleasesUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
@@ -63,8 +66,19 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    // ---- Latest releases state ---------------------------------------------
+
+    private val _latestReleases = MutableStateFlow<List<Anime>>(emptyList())
+    /** Latest-updated anime from voir-anime.to, or an empty list while loading / on error. */
+    val latestReleases: StateFlow<List<Anime>> = _latestReleases.asStateFlow()
+
+    private val _isLatestLoading = MutableStateFlow(false)
+    /** True while the voir-anime.to homepage is being fetched. */
+    val isLatestLoading: StateFlow<Boolean> = _isLatestLoading.asStateFlow()
+
     init {
         observeSearchQuery()
+        loadLatestReleases()
     }
 
     /**
@@ -79,9 +93,28 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Re-fetch the latest releases from voir-anime.to.
+     * Safe to call from the UI (e.g. a "Refresh" button); no-ops if already loading.
+     */
+    fun refreshLatest() {
+        if (_isLatestLoading.value) return
+        loadLatestReleases()
+    }
+
     // -------------------------------------------------------------------------
     // Private
     // -------------------------------------------------------------------------
+
+    private fun loadLatestReleases() {
+        viewModelScope.launch {
+            _isLatestLoading.value = true
+            getLatestReleasesUseCase()
+                .onSuccess { results -> _latestReleases.value = results }
+                .onFailure { /* keep whatever was loaded before; UI still shows stale data */ }
+            _isLatestLoading.value = false
+        }
+    }
 
     @OptIn(FlowPreview::class)
     private fun observeSearchQuery() {

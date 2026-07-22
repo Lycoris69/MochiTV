@@ -36,9 +36,13 @@ private const val BASE_URL = "https://voir-anime.to/"
  * | Episode link    | `a[href]`                                         | Inside each `<li>`                     |
  * | Episode number  | Extracted from URL slug via last `\d+` match      | e.g. "naruto-220-vostfr" → 220         |
  * | Episode title   | `a` element text (trimmed)                        | e.g. "Naruto - 220 VOSTFR - 220"       |
+ * | Latest releases | `div.page-item-detail`                            | Homepage widget; one card per series   |
+ * | Latest thumb    | `div.item-thumb img[src]`                         | Direct `src`, no lazy-load             |
+ * | Latest title    | `div.post-title.font-title a[href]`               | Also carries the anime page URL        |
  *
- * Synopsis, rating, and episode count are **not present** in search-result cards.
- * The search URL pattern `?s={query}` is correct (WordPress native search).
+ * Synopsis, rating, and episode count are **not present** in search-result or
+ * latest-release cards. The search URL pattern `?s={query}` is correct
+ * (WordPress native search). Latest releases are sourced from the site root `/`.
  */
 class VoirAnimeScraper @Inject constructor(
     private val okHttpClient: OkHttpClient,
@@ -138,6 +142,48 @@ class VoirAnimeScraper @Inject constructor(
             ?.let { return@withContext it }
 
         error("VoirAnimeScraper: could not extract stream URL from $episodePageUrl")
+    }
+
+    /**
+     * Fetches the voir-anime.to homepage and returns the latest-updated anime
+     * series displayed in the main "Dernières sorties" widget.
+     *
+     * Selectors (confirmed 2026-07-22):
+     *  - Card root : `div.page-item-detail`
+     *  - Thumbnail : `div.item-thumb img` → `src` (no lazy-load)
+     *  - Title/URL : `div.post-title.font-title a[href]`
+     */
+    override suspend fun getLatestReleases(): List<Anime> = withContext(Dispatchers.IO) {
+        val doc = fetchDocument(BASE_URL)
+
+        doc.select("div.page-item-detail").mapNotNull { card ->
+            val anchor = card.select("div.post-title.font-title a[href]").firstOrNull()
+                ?: return@mapNotNull null
+
+            val href = anchor.attr("abs:href").takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+
+            val slug = href.trimEnd('/').substringAfterLast('/')
+            val title = anchor.text().trim().ifBlank { slug }
+
+            // The homepage cards serve the 110 × 150 px thumbnail directly in `src`.
+            // We prefer the largest srcset variant when available; fall back to src.
+            val imgEl = card.select("div.item-thumb img").firstOrNull()
+            val thumbnail = imgEl?.attr("abs:src").orEmpty()
+
+            Anime(
+                id = "voir_$slug",
+                title = title,
+                thumbnailUrl = thumbnail,
+                synopsis = "",        // Not available in homepage cards
+                genres = emptyList(), // Not available in homepage cards
+                rating = null,        // Not available in homepage cards
+                episodeCount = null,  // Not available in homepage cards
+                status = AnimeStatus.UNKNOWN,
+                sourceUrl = href,
+                sourceSite = SourceSite.VOIR_ANIME,
+            )
+        }
     }
 
     // -------------------------------------------------------------------------

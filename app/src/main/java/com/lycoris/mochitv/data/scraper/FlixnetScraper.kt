@@ -133,6 +133,14 @@ class FlixnetScraper @Inject constructor(
         error("FlixnetScraper: could not extract stream URL from $episodePageUrl")
     }
 
+    /**
+     * Flixnet's homepage (flixnet.site/animesama/) is a full-page iframe shell
+     * with no anime catalogue content of its own.  Latest-releases are sourced
+     * exclusively from [VoirAnimeScraper]; this implementation is intentionally
+     * a no-op so the Hilt multi-binding stays consistent.
+     */
+    override suspend fun getLatestReleases(): List<Anime> = emptyList()
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

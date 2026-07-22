@@ -45,4 +45,16 @@ interface AnimeScraper {
      * @throws Exception if no stream URL can be extracted.
      */
     suspend fun getStreamUrl(episodePageUrl: String): String
+
+    /**
+     * Fetch the source site's homepage and return the latest-updated anime
+     * series (as many as the page exposes, typically 15–20).
+     *
+     * Sources whose homepage does not expose a meaningful latest-updates feed
+     * should return [emptyList] — the repository calls only the voir-anime
+     * scraper for this purpose, but every implementation must compile.
+     *
+     * @throws Exception on network errors or unexpected HTML structure.
+     */
+    suspend fun getLatestReleases(): List<Anime> = emptyList()
 }

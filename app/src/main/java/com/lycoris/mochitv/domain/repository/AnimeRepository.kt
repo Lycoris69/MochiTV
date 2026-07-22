@@ -76,4 +76,15 @@ interface AnimeRepository {
      * the cache without a redundant network round-trip.
      */
     suspend fun getEpisodeById(id: String): Result<Episode>
+
+    /**
+     * Fetch the latest-updated anime from voir-anime.to's homepage.
+     *
+     * Results are upserted into the local Room cache so they surface in
+     * [observeCachedAnime] and the detail screen can look them up offline.
+     *
+     * @return [Result.success] with a non-empty list on success, or
+     *         [Result.failure] on network / parse error.
+     */
+    suspend fun getLatestReleases(): Result<List<Anime>>
 }
