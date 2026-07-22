@@ -69,8 +69,7 @@ class VoirAnimeScraper @Inject constructor(
             val slug = href.trimEnd('/').substringAfterLast('/')
 
             val thumbImg = card.select("div.tab-thumb img").firstOrNull()
-            val thumbnail = (thumbImg?.attr("abs:data-src")?.takeIf { it.isNotBlank() }
-                ?: thumbImg?.attr("abs:src")).orEmpty()
+            val thumbnail = bestThumbnail(thumbImg)
 
             val genres = card.select("div.post-content_item.mg_genres .summary-content a")
                 .map { it.text().trim() }
@@ -208,8 +207,7 @@ class VoirAnimeScraper @Inject constructor(
             val title = anchor.text().trim().ifBlank { slug }
 
             val imgEl = card.select("div.item-thumb img").firstOrNull()
-            val thumbnail = (imgEl?.attr("abs:data-src")?.takeIf { it.isNotBlank() }
-                ?: imgEl?.attr("abs:src")).orEmpty()
+            val thumbnail = bestThumbnail(imgEl)
 
             Anime(
                 id = "voir_$slug",
@@ -229,6 +227,37 @@ class VoirAnimeScraper @Inject constructor(
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Returns the highest-resolution URL available for [imgEl].
+     *
+     * Parses the `srcset` attribute ("url 460w, url 110w, …"), picks the entry
+     * with the largest width descriptor, and falls back to plain `src` if
+     * `srcset` is absent or unparseable.
+     */
+    private fun bestThumbnail(imgEl: org.jsoup.nodes.Element?): String {
+        imgEl ?: return ""
+        val srcset = imgEl.attr("srcset").takeIf { it.isNotBlank() }
+        if (srcset != null) {
+            val best = srcset.split(",")
+                .mapNotNull { entry ->
+                    val parts = entry.trim().split("\\s+".toRegex())
+                    if (parts.size >= 2) {
+                        val w = parts.last().removeSuffix("w").toIntOrNull() ?: 0
+                        parts.first() to w
+                    } else null
+                }
+                .maxByOrNull { it.second }
+                ?.first
+            if (!best.isNullOrBlank()) {
+                // srcset URLs are already absolute on this site; make sure
+                return if (best.startsWith("http")) best
+                else "$BASE_URL${best.trimStart('/')}"
+            }
+        }
+        return (imgEl.attr("abs:data-src").takeIf { it.isNotBlank() }
+            ?: imgEl.attr("abs:src"))
+    }
 
     private fun fetchDocument(url: String): Document {
         val request = Request.Builder()
