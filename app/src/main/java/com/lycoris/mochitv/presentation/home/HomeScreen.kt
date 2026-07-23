@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -362,13 +363,38 @@ private fun AnimeCard(
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f),
             )
-            Text(
-                text = anime.title,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(8.dp),
-            )
+            // Fixed-height container so every card aligns regardless of whether
+            // the title spans one or two lines, and whether a date is present.
+            // Height budget (with 6dp top/bottom padding = 12dp total):
+            //   labelSmall line (optional date) ≈ 16dp
+            //   labelMedium × 2 lines           ≈ 32dp
+            //   inner content                    ≈ 48dp  →  container = 60dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                contentAlignment = Alignment.TopStart,
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    if (!anime.lastReleaseDate.isNullOrBlank()) {
+                        Text(
+                            text = anime.lastReleaseDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = anime.title,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }

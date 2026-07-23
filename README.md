@@ -81,6 +81,12 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.2.0
+- Home screen cards are now all the same height regardless of title length
+- Home screen cards show the date of the latest episode release (scraped from voir-anime.to)
+- Series detail page shows a source badge ("Voir Anime" / "Anime-Sama") next to the status chip
+- Episode rows show the release date when available (voir-anime.to only)
+
 ### v1.1.8
 - Downloaded episodes now play fully offline — the player checks the Media3 cache first and skips all network calls when the content is already cached
 

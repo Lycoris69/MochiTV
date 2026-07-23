@@ -20,4 +20,6 @@ data class Episode(
     /** URL of the episode watch page — used by scrapers to resolve stream URLs. */
     val pageUrl: String,
     val sourceSite: SourceSite,
+    /** Human-readable release date as scraped from the source site, or null if unavailable. */
+    val releaseDate: String? = null,
 )

@@ -31,6 +31,8 @@ data class AnimeEntity(
     val sourceUrl: String,
     /** [SourceSite.name]. */
     val sourceSite: String,
+    /** Date of the most recent episode release as reported by the scraper; null when not available. */
+    val lastReleaseDate: String?,
 )
 
 // ---- Mapping extensions ----------------------------------------------------
@@ -47,6 +49,7 @@ fun AnimeEntity.toDomain(): Anime = Anime(
     status = runCatching { AnimeStatus.valueOf(status) }.getOrDefault(AnimeStatus.UNKNOWN),
     sourceUrl = sourceUrl,
     sourceSite = SourceSite.valueOf(sourceSite),
+    lastReleaseDate = lastReleaseDate,
 )
 
 /** Converts the domain model to its Room entity counterpart. */
@@ -61,4 +64,5 @@ fun Anime.toEntity(): AnimeEntity = AnimeEntity(
     status = status.name,
     sourceUrl = sourceUrl,
     sourceSite = sourceSite.name,
+    lastReleaseDate = lastReleaseDate,
 )

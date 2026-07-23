@@ -20,6 +20,8 @@ data class Anime(
     /** URL of the anime detail page on the source site. */
     val sourceUrl: String,
     val sourceSite: SourceSite,
+    /** Date of the most recent episode release as reported by the source, or null if unavailable. */
+    val lastReleaseDate: String? = null,
 )
 
 /** Publication status as reported by the source site. */

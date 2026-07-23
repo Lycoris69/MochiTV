@@ -27,7 +27,7 @@ import com.lycoris.mochitv.data.local.entity.SearchHistoryEntity
  */
 @Database(
     entities = [AnimeEntity::class, EpisodeEntity::class, BookmarkEntity::class, SearchHistoryEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

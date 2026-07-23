@@ -108,6 +108,15 @@ class VoirAnimeScraper @Inject constructor(
                 ?: (index + 1)
             val epTitle = element.select("a").text().trim().ifBlank { null }
 
+            // Madara theme: release date is inside .chapter-release-date or .chapter-date,
+            // typically wrapped in an <i> element. Try the most specific selector first.
+            val releaseDate = element
+                .select(".chapter-release-date i, .chapter-date i, .chapter-release-date, .chapter-date")
+                .firstOrNull()
+                ?.text()
+                ?.trim()
+                ?.ifBlank { null }
+
             Episode(
                 id = "voir_ep_${animeSlug}_$epNum",
                 animeId = "voir_$animeSlug",
@@ -117,6 +126,7 @@ class VoirAnimeScraper @Inject constructor(
                 durationSeconds = null,
                 pageUrl = href,
                 sourceSite = SourceSite.VOIR_ANIME,
+                releaseDate = releaseDate,
             )
         }
     }
@@ -209,6 +219,16 @@ class VoirAnimeScraper @Inject constructor(
             val imgEl = card.select("div.item-thumb img").firstOrNull()
             val thumbnail = bestThumbnail(imgEl)
 
+            // Best-effort date extraction from Madara theme chapter list widget.
+            // The homepage card typically shows the latest chapter + its date in:
+            //   div.list-chapter > div.chapter-item > span.post-date
+            // Fall back through progressively broader selectors; yield null on failure.
+            val dateString =
+                card.select("div.chapter-item span.post-date").firstOrNull()?.text()?.trim()?.ifBlank { null }
+                    ?: card.select("span.post-date").firstOrNull()?.text()?.trim()?.ifBlank { null }
+                    ?: card.select("div.list-chapter .chapter-item span:not(.chapter)").firstOrNull()
+                        ?.text()?.trim()?.ifBlank { null }
+
             Anime(
                 id = "voir_$slug",
                 title = title,
@@ -220,6 +240,7 @@ class VoirAnimeScraper @Inject constructor(
                 status = AnimeStatus.UNKNOWN,
                 sourceUrl = href,
                 sourceSite = SourceSite.VOIR_ANIME,
+                lastReleaseDate = dateString,
             )
         }
     }

@@ -41,6 +41,8 @@ data class EpisodeEntity(
     val pageUrl: String,
     /** [SourceSite.name]. */
     val sourceSite: String,
+    /** Human-readable release date as scraped from the source site, or null if unavailable. */
+    val releaseDate: String? = null,
 )
 
 // ---- Mapping extensions ----------------------------------------------------
@@ -55,6 +57,7 @@ fun EpisodeEntity.toDomain(): Episode = Episode(
     durationSeconds = durationSeconds,
     pageUrl = pageUrl,
     sourceSite = SourceSite.valueOf(sourceSite),
+    releaseDate = releaseDate,
 )
 
 /** Converts the domain model to its Room entity counterpart. */
@@ -67,4 +70,5 @@ fun Episode.toEntity(): EpisodeEntity = EpisodeEntity(
     durationSeconds = durationSeconds,
     pageUrl = pageUrl,
     sourceSite = sourceSite.name,
+    releaseDate = releaseDate,
 )

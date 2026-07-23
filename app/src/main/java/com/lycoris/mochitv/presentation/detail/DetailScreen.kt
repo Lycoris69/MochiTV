@@ -56,6 +56,7 @@ import coil.compose.AsyncImage
 import com.lycoris.mochitv.domain.model.Anime
 import com.lycoris.mochitv.domain.model.AnimeStatus
 import com.lycoris.mochitv.domain.model.Episode
+import com.lycoris.mochitv.domain.model.SourceSite
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,7 +201,13 @@ private fun DetailContent(
                             modifier = Modifier.weight(1f),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        StatusBadge(status = anime.status)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SourceBadge(sourceSite = anime.sourceSite)
+                            StatusBadge(status = anime.status)
+                        }
                     }
 
                     anime.rating?.let { rating ->
@@ -318,6 +325,26 @@ private fun StatusBadge(status: AnimeStatus) {
 }
 
 @Composable
+private fun SourceBadge(sourceSite: SourceSite) {
+    val label = when (sourceSite) {
+        SourceSite.VOIR_ANIME  -> "Voir Anime"
+        SourceSite.ANIME_SAMA  -> "Anime-Sama"
+    }
+    val color = MaterialTheme.colorScheme.outline
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = color.copy(alpha = 0.15f),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
 private fun EpisodeRow(
     episode: Episode,
     onClick: () -> Unit,
@@ -355,6 +382,14 @@ private fun EpisodeRow(
             episode.durationSeconds?.let { secs ->
                 Text(
                     text = formatDuration(secs),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            episode.releaseDate?.let { date ->
+                Text(
+                    text = date,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
