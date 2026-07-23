@@ -92,6 +92,12 @@ class AnimeRepositoryImpl @Inject constructor(
         }
 
         episodes
+    }.recoverCatching { networkError ->
+        // Network unavailable — serve whatever is already in the Room cache.
+        // Re-throw the original error only if the cache is also empty.
+        val cached = episodeDao.getAllByAnimeId(animeId)
+        if (cached.isEmpty()) throw networkError
+        cached.map { it.toDomain() }
     }
 
     override suspend fun getStreamUrl(episode: Episode): Result<String> = runCatching {

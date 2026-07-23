@@ -32,6 +32,10 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE animeId = :animeId ORDER BY number ASC")
     fun observeByAnimeId(animeId: String): Flow<List<EpisodeEntity>>
 
+    /** Returns all cached episodes for [animeId] ordered by episode number. */
+    @Query("SELECT * FROM episode WHERE animeId = :animeId ORDER BY number ASC")
+    suspend fun getAllByAnimeId(animeId: String): List<EpisodeEntity>
+
     /** Returns the episode row with [id], or `null` if not cached. */
     @Query("SELECT * FROM episode WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): EpisodeEntity?

@@ -81,6 +81,9 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.7
+- Offline mode: opening a bookmarked anime now loads its episode list from the local Room cache when there is no network connection, instead of showing an error
+
 ### v1.1.6
 - Download button now reflects the real download state: spinner while resolving or downloading, green checkmark when complete, red error icon on failure (tap to retry)
 - Download states persist across screen navigation — already-downloaded episodes show the checkmark when you reopen the detail screen
