@@ -3,6 +3,7 @@ package com.lycoris.mochitv.data.scraper
 import com.lycoris.mochitv.data.network.UserAgents
 import com.lycoris.mochitv.data.scraper.extractor.Embed4meExtractor
 import com.lycoris.mochitv.data.scraper.extractor.GenericExtractor
+import com.lycoris.mochitv.data.scraper.extractor.SibnetExtractor
 import com.lycoris.mochitv.data.scraper.extractor.StreamExtractor
 import com.lycoris.mochitv.data.scraper.extractor.StreamtapeExtractor
 import com.lycoris.mochitv.data.scraper.extractor.VidmolyExtractor
@@ -47,7 +48,7 @@ private const val BASE_URL = "https://anime-sama.to/"
  * | Genres          | `span.genre-pill`                                          |
  * | Status          | first `span.info-val` text ("Terminé" / "En cours")        |
  * | Seasons         | `panneauAnime("label", "relativeUrl")` in inline JS        |
- * | Episode embeds  | `var eps1 = ['url', ...]` in `episodes.js`                 |
+ * | Episode embeds  | `var epsN = ['url', ...]` in `episodes.js` (eps1..eps5)    |
  * | Latest card     | `div.anime-card-premium` on homepage                       |
  * | Latest title    | `h2.card-title`                                            |
  * | Latest thumb    | `img.card-image[src]`                                      |
@@ -105,31 +106,32 @@ class AnimeSamaScraper @Inject constructor(
 
     /**
      * Fetches the catalogue page for [animePageUrl], picks the first available
-     * season, then loads its `episodes.js` to get the embed URL list.
+     * season, then loads its `episodes.js`.
      *
-     * Each [Episode.pageUrl] is set to the Vidmoly (or other host) embed URL
-     * directly — [getStreamUrl] receives it and extracts the `.m3u8` / `.mp4`.
+     * episodes.js can define multiple player arrays (eps1…epsN).  We parse all of
+     * them and pick the best URL per episode using [pickPreferredUrl]:
+     *   sibnet (eps3) > vidmoly (eps2) > streamtape > anything else > embed4me
      */
     override suspend fun getEpisodes(animePageUrl: String): List<Episode> = withContext(Dispatchers.IO) {
         val doc = fetchDocument(animePageUrl)
         val animeSlug = animePageUrl.trimEnd('/').substringAfterLast('/')
 
-        // Parse panneauAnime("label", "relativeUrl") calls from inline JS.
-        // Prefer VOSTFR seasons; fall back to the first listed season.
         val seasonUrl = pickSeasonUrl(doc, animePageUrl) ?: return@withContext emptyList()
 
-        // Load the per-season episode embed list.
         val epsJs = fetchRaw("${seasonUrl}episodes.js", referer = animePageUrl)
 
-        // Parse:  var eps1 = ['url1', 'url2', ...];
-        val embedUrls = Regex("""var\s+eps1\s*=\s*\[(.*?)\]""", RegexOption.DOT_MATCHES_ALL)
-            .find(epsJs)
-            ?.groupValues?.get(1)
-            ?.let { parseJsStringArray(it) }
-            ?: emptyList()
+        // Parse every epsN variable: { playerIndex -> listOf(embedUrls) }
+        val allPlayers = Regex("""var\s+eps(\d+)\s*=\s*\[(.*?)\]""", RegexOption.DOT_MATCHES_ALL)
+            .findAll(epsJs)
+            .associate { m -> m.groupValues[1].toInt() to parseJsStringArray(m.groupValues[2]) }
 
-        embedUrls.mapIndexed { index, embedUrl ->
-            val epNum = index + 1
+        if (allPlayers.isEmpty()) return@withContext emptyList()
+
+        val episodeCount = allPlayers.values.maxOf { it.size }
+
+        (0 until episodeCount).mapNotNull { idx ->
+            val embedUrl = pickPreferredUrl(allPlayers, idx) ?: return@mapNotNull null
+            val epNum = idx + 1
             Episode(
                 id = "animesama_ep_${animeSlug}_$epNum",
                 animeId = "animesama_$animeSlug",
@@ -144,27 +146,38 @@ class AnimeSamaScraper @Inject constructor(
     }
 
     /**
-     * [episodePageUrl] is the embed URL (e.g. `https://vidmoly.to/embed-xxx.html`)
-     * returned directly by [getEpisodes].  We fetch it and run extractors to get
-     * the direct `.m3u8` / `.mp4` stream URL.
+     * Resolves the direct stream URL for [episodePageUrl].
+     *
+     * - **sibnet**: fetch shell.php, extract the signed CDN path, follow the
+     *   302 redirect (requires Referer: video.sibnet.ru) to get the final URL.
+     * - **embed4me**: handed off to the WebView-based [Embed4meExtractor].
+     * - **everything else**: tried through the standard extractor chain.
      */
     override suspend fun getStreamUrl(episodePageUrl: String): String = withContext(Dispatchers.IO) {
-        // embed4me is a Cloudflare-protected React SPA — needs WebView-based extraction.
-        if ("embed4me.com" in episodePageUrl) {
-            return@withContext embed4meExtractor.extract(episodePageUrl)
-        }
+        when {
+            "sibnet.ru" in episodePageUrl -> {
+                val html = fetchRaw(episodePageUrl, referer = BASE_URL)
+                val videoUrl = SibnetExtractor.extract(episodePageUrl, html)
+                    ?: error("SibnetExtractor: could not find video URL in $episodePageUrl")
+                // The video URL redirects to a signed CDN URL; follow it manually
+                // because the redirect requires Referer: https://video.sibnet.ru/.
+                followSibnetRedirect(videoUrl)
+            }
 
-        val html = fetchRaw(episodePageUrl, referer = BASE_URL)
-        val extractors: List<StreamExtractor> = listOf(
-            VidmolyExtractor,
-            StreamtapeExtractor,
-            GenericExtractor,
-        )
-        for (extractor in extractors) {
-            val url = extractor.extract(episodePageUrl, html)
-            if (!url.isNullOrBlank()) return@withContext url
+            "embed4me.com" in episodePageUrl ->
+                embed4meExtractor.extract(episodePageUrl)
+
+            else -> {
+                val html = fetchRaw(episodePageUrl, referer = BASE_URL)
+                val extractors: List<StreamExtractor> = listOf(
+                    VidmolyExtractor,
+                    StreamtapeExtractor,
+                    GenericExtractor,
+                )
+                extractors.firstNotNullOfOrNull { it.extract(episodePageUrl, html) }
+                    ?: error("AnimeSamaScraper: could not extract stream URL from $episodePageUrl")
+            }
         }
-        error("AnimeSamaScraper: could not extract stream URL from $episodePageUrl")
     }
 
     override suspend fun getAnimeSynopsis(animePageUrl: String): String = withContext(Dispatchers.IO) {
@@ -211,6 +224,50 @@ class AnimeSamaScraper @Inject constructor(
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * For a given episode [index], picks the best embed URL across all player
+     * arrays.  Priority: sibnet > vidmoly > streamtape > other > embed4me.
+     */
+    private fun pickPreferredUrl(allPlayers: Map<Int, List<String>>, index: Int): String? {
+        val candidates = allPlayers.values
+            .mapNotNull { urls -> urls.getOrNull(index)?.takeIf { it.isNotBlank() } }
+        if (candidates.isEmpty()) return null
+        return candidates.firstOrNull { "sibnet.ru" in it }
+            ?: candidates.firstOrNull { "vidmoly" in it }
+            ?: candidates.firstOrNull { "streamtape" in it }
+            ?: candidates.firstOrNull { "embed4me.com" !in it }
+            ?: candidates.first()
+    }
+
+    /**
+     * Makes a HEAD request to [videoUrl] with the Referer sibnet expects, and
+     * returns the Location from the 302 redirect — that is the signed CDN URL
+     * that ExoPlayer can play directly without any special headers.
+     */
+    private fun followSibnetRedirect(videoUrl: String): String {
+        val noFollowClient = okHttpClient.newBuilder()
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
+
+        val request = Request.Builder()
+            .url(videoUrl)
+            .head()
+            .header("User-Agent", UserAgents.random())
+            .header("Referer", "https://video.sibnet.ru/")
+            .build()
+
+        return noFollowClient.newCall(request).execute().use { resp ->
+            val location = resp.header("Location")
+                ?: error("SibnetExtractor: no redirect from $videoUrl (status ${resp.code})")
+            when {
+                location.startsWith("//") -> "https:$location"
+                location.startsWith("/")  -> "https://video.sibnet.ru$location"
+                else -> location
+            }
+        }
+    }
 
     /**
      * Parses `panneauAnime("label", "relativeUrl")` calls from the catalogue

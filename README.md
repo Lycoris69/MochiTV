@@ -81,6 +81,11 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.2
+- Anime-sama episodes now use **Sibnet** (player 3) by default — reliable playback with no bot protection issues
+- All player arrays (eps1–eps5) are parsed; best source is chosen automatically (sibnet > vidmoly > streamtape > others > embed4me)
+- Sibnet stream URL is resolved server-side (follows the CDN redirect with the correct Referer), so ExoPlayer receives a direct signed MP4 URL
+
 ### v1.1.1
 - Fixed playback for anime-sama episodes hosted on embed4me.com (player uses a headless WebView to bypass Cloudflare bot protection and intercept the HLS stream URL)
 
