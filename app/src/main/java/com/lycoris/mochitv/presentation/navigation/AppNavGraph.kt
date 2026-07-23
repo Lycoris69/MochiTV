@@ -3,6 +3,7 @@ package com.lycoris.mochitv.presentation.navigation
 import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -22,13 +23,15 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.lycoris.mochitv.presentation.detail.DetailScreen
+import com.lycoris.mochitv.presentation.downloads.DownloadsScreen
 import com.lycoris.mochitv.presentation.home.HomeScreen
 import com.lycoris.mochitv.presentation.library.LibraryScreen
 import com.lycoris.mochitv.presentation.player.PlayerScreen
 
 sealed class Screen(val route: String) {
-    data object Home    : Screen("home")
-    data object Library : Screen("library")
+    data object Home      : Screen("home")
+    data object Library   : Screen("library")
+    data object Downloads : Screen("downloads")
 
     data object Detail : Screen("detail/{animeId}") {
         fun createRoute(animeId: String) = "detail/${Uri.encode(animeId)}"
@@ -41,8 +44,9 @@ sealed class Screen(val route: String) {
 }
 
 private val bottomNavItems = listOf(
-    Triple(Screen.Home,    "Home",    Icons.Filled.Home),
-    Triple(Screen.Library, "Library", Icons.Filled.Bookmark),
+    Triple(Screen.Home,      "Home",      Icons.Filled.Home),
+    Triple(Screen.Library,   "Library",   Icons.Filled.Bookmark),
+    Triple(Screen.Downloads, "Downloads", Icons.Filled.Download),
 )
 
 @Composable
@@ -52,7 +56,11 @@ fun AppNavGraph(
 ) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentDest = backStack?.destination
-    val showBottomBar = currentDest?.route in setOf(Screen.Home.route, Screen.Library.route)
+    val showBottomBar = currentDest?.route in setOf(
+        Screen.Home.route,
+        Screen.Library.route,
+        Screen.Downloads.route,
+    )
 
     Scaffold(
         bottomBar = {
@@ -93,6 +101,14 @@ fun AppNavGraph(
 
             composable(Screen.Library.route) {
                 LibraryScreen(
+                    onAnimeClick = { animeId ->
+                        navController.navigate(Screen.Detail.createRoute(animeId))
+                    },
+                )
+            }
+
+            composable(Screen.Downloads.route) {
+                DownloadsScreen(
                     onAnimeClick = { animeId ->
                         navController.navigate(Screen.Detail.createRoute(animeId))
                     },

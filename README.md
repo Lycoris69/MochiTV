@@ -81,6 +81,9 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.2.1
+- New **Downloads** tab in the bottom nav bar — shows every series that has at least one downloaded episode, accessible fully offline without requiring a bookmark
+
 ### v1.2.0
 - Home screen cards are now all the same height regardless of title length
 - Home screen cards show the date of the latest episode release (scraped from voir-anime.to)
