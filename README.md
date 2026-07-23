@@ -81,6 +81,9 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.2.2
+- Fixed uneven card heights in the Library and Downloads grids (same fix applied earlier to the home screen)
+
 ### v1.2.1
 - New **Downloads** tab in the bottom nav bar — shows every series that has at least one downloaded episode, accessible fully offline without requiring a bookmark
 
