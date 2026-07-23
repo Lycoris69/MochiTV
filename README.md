@@ -81,6 +81,9 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.4
+- Fixed crash when tapping the download button (`Result.map` was not catching exceptions thrown by the system DownloadManager — changed to `mapCatching` so errors surface as a snackbar instead of killing the app)
+
 ### v1.1.3
 - Download episodes to `Downloads/MochiTV/<anime>/<episode>.mp4` via the system DownloadManager
 - Download button appears on every episode row; spins while the stream URL is being resolved

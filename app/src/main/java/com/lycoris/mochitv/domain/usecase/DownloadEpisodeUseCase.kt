@@ -16,7 +16,7 @@ class DownloadEpisodeUseCase @Inject constructor(
     private val downloader: EpisodeDownloader,
 ) {
     suspend operator fun invoke(episode: Episode, animeName: String): Result<Unit> =
-        getStreamUrlUseCase(episode).map { url ->
+        getStreamUrlUseCase(episode).mapCatching { url ->
             downloader.enqueue(url, animeName, episode.number, episode.title)
         }
 }
