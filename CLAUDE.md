@@ -75,6 +75,8 @@ Video playback uses **ExoPlayer** (Media3). Stream URLs are extracted by the scr
 
 `BookmarkEntity` stores `animeId` + timestamp in Room. `BookmarkRepositoryImpl` joins with `AnimeDao` to return full `Anime` objects. The `LibraryScreen` shows bookmarked series in a 3-column grid. The bookmark toggle lives in the `DetailScreen` TopAppBar.
 
+**Offline note:** To reach a detail page offline you must have bookmarked it (Library) or have it in the Room anime cache from a prior visit. The episode list falls back to `EpisodeDao.getAllByAnimeId()` via `recoverCatching` in `AnimeRepositoryImpl.getEpisodes()` when the network is unavailable.
+
 ### Key Libraries
 
 | Purpose | Library | Version |
@@ -84,6 +86,7 @@ Video playback uses **ExoPlayer** (Media3). Stream URLs are extracted by the scr
 | DI | Hilt | 2.53.1 |
 | Image loading | Coil | 2.7.0 |
 | Video playback | AndroidX Media3 / ExoPlayer | 1.4.1 |
+| Offline downloads | AndroidX Media3 (media3-exoplayer-hls, media3-database) | 1.4.1 |
 | Async | Kotlin Coroutines + Flow | — |
 | Navigation | Jetpack Navigation Compose | 2.8.5 |
 | UI | Jetpack Compose + Material 3 | BOM 2024.12.01 |
@@ -92,16 +95,40 @@ Video playback uses **ExoPlayer** (Media3). Stream URLs are extracted by the scr
 
 Min SDK: 26 · Target SDK: 35 · AGP: 8.7.3 · Kotlin: 2.1.0
 
+### Downloads
+
+Offline episode downloads are handled by **Media3 `DownloadService`** (supports both MP4 and HLS/m3u8).
+
+| File | Role |
+|---|---|
+| `data/download/MochiDownloadService.kt` | Extends Media3 `DownloadService`; shows a foreground notification during downloads |
+| `data/download/DownloadManagerHolder.kt` | Process-scoped singleton (`object`) providing `DownloadManager` + `SimpleCache`; double-checked locking |
+| `data/download/EpisodeDownloader.kt` | `@Singleton` injected into ViewModels; exposes `enqueue()`, `observeStates(): Flow<Map<String,Int>>`, and `getDownloadedUri(id): String?` |
+| `domain/usecase/DownloadEpisodeUseCase.kt` | Resolves stream URL then calls `EpisodeDownloader.enqueue()`; uses `mapCatching` (not `map`) |
+| `presentation/detail/EpisodeDownloadState.kt` | Sealed interface: `None / Resolving / Queued / Downloading / Completed / Failed` |
+
+Downloaded content lives in `<externalFilesDir>/media3_downloads/`. `PlayerScreen` builds ExoPlayer with a `CacheDataSource.Factory` backed by `DownloadManagerHolder.getCache(context)` so downloaded episodes play fully offline. `PlayerViewModel` checks `getDownloadedUri()` first — if the episode is cached, it skips all network stream resolution.
+
+`DetailViewModel` combines `_resolvingEpisodes: MutableStateFlow<Set<String>>` with `episodeDownloader.observeStates()` via `combine()` to produce `episodeDownloadStates: StateFlow<Map<String, EpisodeDownloadState>>`.
+
+Required manifest entries: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `MochiDownloadService` with `foregroundServiceType="dataSync"`.
+
 ### Room Database
 
-- `MochiDatabase` version **2** (version 1 → 2 added `bookmarks` table; `fallbackToDestructiveMigration()` is set)
-- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`
-- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`
+- `MochiDatabase` version **4** (`fallbackToDestructiveMigration()` is set — no migration scripts)
+  - v1 → v2: added `bookmarks` table
+  - v2 → v3: added `search_history` table
+  - v3 → v4: added `lastReleaseDate` to `anime`, `releaseDate` to `episode`
+- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`, `SearchHistoryEntity`
+- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`, `SearchHistoryDao`
 
 ## Scraping Notes
 
-- **anime-sama.to**: search is a POST (not GET); episodes come from a per-season `episodes.js` file at `{catalogueUrl}/{season}/{lang}/episodes.js`. `srcset` parsing not needed (images are already full-res).
+- **anime-sama.to**: search is a POST (not GET); episodes come from a per-season `episodes.js` file at `{catalogueUrl}/{season}/{lang}/episodes.js`. `srcset` parsing not needed (images are already full-res). No date metadata available.
 - **voir-anime.to**: CDN returns 403 without a `Referer` header — Coil's `ImageLoader` sets it automatically via an OkHttp interceptor in `AppModule`. Parse `srcset` to get high-res thumbnails (460×630) instead of the tiny `src` default (110×150).
+  - Latest release date: scraped from `div.chapter-item span.post-date` (or `span.post-date` fallback) in `getLatestReleases` → `Anime.lastReleaseDate`
+  - Episode release date: scraped from `.chapter-release-date i, .chapter-date i` in `getEpisodes` → `Episode.releaseDate`
+  - Both are best-effort and nullable; no UI breakage if selectors miss.
 - Rotate User-Agent headers using `UserAgents.random()` from `data/network/UserAgents.kt`.
 
 ## Navigation
