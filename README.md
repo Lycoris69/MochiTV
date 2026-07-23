@@ -3,7 +3,7 @@
 An Android app for watching anime, built with Kotlin and Jetpack Compose. Content is scraped from two French-language sources and unified into a single browsable catalogue.
 
 **Sources**
-- [flixnet.site/animesama](https://flixnet.site/animesama/)
+- [anime-sama.to](https://anime-sama.to/)
 - [voir-anime.to](https://voir-anime.to/)
 
 > **Personal use only.** This app is a private project built for personal viewing. It does not host, distribute, or store any copyrighted content — all media is streamed directly from the third-party source sites. Do not redistribute the APK or use this project for commercial purposes.
@@ -44,9 +44,14 @@ di/             ← Hilt modules
 
 Each source has its own `AnimeScraper` implementation. Both are bound into a `Set<AnimeScraper>` via Hilt multi-binding, so `AnimeRepositoryImpl` fans searches out to all sources concurrently using `coroutineScope + async` — adding a third source requires only a new scraper class and one `@Binds @IntoSet` line.
 
-Stream URL extraction tries three strategies in order: `<iframe src>` → JS `var videoUrl` → JWPlayer `file:` key.
+| Scraper | Search | Episodes | Stream |
+|---|---|---|---|
+| `AnimeSamaScraper` | POST `/template-php/defaut/fetch.php` | `episodes.js` per season (JS array of embed URLs) | Embed page → extractor chain |
+| `VoirAnimeScraper` | `?s=` WordPress search | Madara theme `li.wp-manga-chapter` | iframe → embed page → extractor chain |
 
-IDs are source-prefixed (e.g. `flixnet_naruto`, `voir_naruto`) so results from different scrapers coexist without collision.
+Stream extraction tries three extractors in order: `VidmolyExtractor` → `StreamtapeExtractor` → `GenericExtractor`.
+
+IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from different scrapers coexist without collision.
 
 ---
 
@@ -76,20 +81,34 @@ IDs are source-prefixed (e.g. `flixnet_naruto`, `voir_naruto`) so results from d
 
 ## Changelog
 
+### v1.0.9
+- New **Library** tab: bookmark any series and find it later
+- Bookmark toggle button (filled / outlined) in the detail screen top bar
+- Bottom navigation bar (Home / Library) on all root screens
+
+### v1.0.8
+- Replaced animesamatv.su (tiny catalogue) with **anime-sama.to** — large French catalogue with Naruto, One Piece, and thousands more titles
+
+### v1.0.7
+- New app icon: MochiTV mascot replaces the placeholder
+
+### v1.0.6
+- README updates (personal-use disclaimer, changelog)
+
 ### v1.0.5
-- Thumbnails now load at full resolution (460×630 px) by parsing the `srcset` attribute instead of the small default `src` (110×150 px)
+- Thumbnails now load at full resolution (460×630 px) by parsing `srcset` instead of the small default `src` (110×150 px)
 
 ### v1.0.4
 - Fixed synopsis not appearing on the detail screen
 - Fixed images not loading (added Referer header to Coil image requests)
 
 ### v1.0.3 / v1.0.2
-- Added infinite scroll for latest releases on the home screen
+- Infinite scroll for latest releases on the home screen
 - Fixed empty video player — stream URLs now extracted via two-level iframe resolution
 
 ### v1.0.1
-- Added latest releases section on the home screen (sourced from voir-anime.to)
-- Added anime thumbnails in search results and detail screen
+- Latest releases section on the home screen (voir-anime.to)
+- Anime thumbnails in search results and detail screen
 
 ### v1.0.0
 - Initial release: search, anime detail, episode list, video playback
