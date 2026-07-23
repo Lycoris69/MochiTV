@@ -81,6 +81,9 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.8
+- Downloaded episodes now play fully offline — the player checks the Media3 cache first and skips all network calls when the content is already cached
+
 ### v1.1.7
 - Offline mode: opening a bookmarked anime now loads its episode list from the local Room cache when there is no network connection, instead of showing an error
 

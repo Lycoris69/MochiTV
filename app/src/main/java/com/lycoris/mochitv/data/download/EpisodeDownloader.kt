@@ -63,6 +63,19 @@ class EpisodeDownloader @Inject constructor(
         awaitClose { dm.removeListener(listener) }
     }
 
+    /**
+     * If [episodeId] has a completed download in the Media3 cache, returns the
+     * URI that was used for the download (suitable for offline playback via
+     * [CacheDataSource]).  Returns null if the episode is not fully downloaded.
+     */
+    fun getDownloadedUri(episodeId: String): String? {
+        val dm = DownloadManagerHolder.getDownloadManager(context)
+        val download = dm.downloadIndex.getDownload(episodeId) ?: return null
+        return if (download.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED) {
+            download.request.uri.toString()
+        } else null
+    }
+
     fun enqueue(
         streamUrl: String,
         episodeId: String,

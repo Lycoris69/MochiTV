@@ -3,6 +3,7 @@ package com.lycoris.mochitv.presentation.player
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lycoris.mochitv.data.download.EpisodeDownloader
 import com.lycoris.mochitv.domain.usecase.GetEpisodesUseCase
 import com.lycoris.mochitv.domain.usecase.GetStreamUrlUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,32 +13,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * ViewModel for the video player screen.
- *
- * ### Data flow
- * 1. [episodeId] and [animeId] are read from [SavedStateHandle].
- * 2. [GetEpisodesUseCase] is called — the result is served from the Room cache
- *    populated by [com.lycoris.mochitv.presentation.detail.DetailViewModel], so
- *    no redundant network call is expected in the normal navigation path.
- *    If the cache is empty (e.g. deep-link), the use case falls back to scraping.
- * 3. The target [com.lycoris.mochitv.domain.model.Episode] is located by id.
- * 4. [GetStreamUrlUseCase] resolves the direct stream URL via the scraper.
- * 5. On success, the state transitions to [PlayerUiState.Ready].
- */
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getEpisodesUseCase: GetEpisodesUseCase,
     private val getStreamUrlUseCase: GetStreamUrlUseCase,
+    private val episodeDownloader: EpisodeDownloader,
 ) : ViewModel() {
 
-    private val episodeId: String = checkNotNull(savedStateHandle["episodeId"]) {
-        "PlayerViewModel requires an 'episodeId' navigation argument"
-    }
-    private val animeId: String = checkNotNull(savedStateHandle["animeId"]) {
-        "PlayerViewModel requires an 'animeId' navigation argument"
-    }
+    private val episodeId: String = checkNotNull(savedStateHandle["episodeId"])
+    private val animeId: String = checkNotNull(savedStateHandle["animeId"])
 
     private val _uiState = MutableStateFlow<PlayerUiState>(PlayerUiState.Loading)
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -46,14 +31,12 @@ class PlayerViewModel @Inject constructor(
         loadStream()
     }
 
-    /** Retry resolving the stream URL after an error. */
     fun retry() = loadStream()
 
     private fun loadStream() {
         viewModelScope.launch {
             _uiState.value = PlayerUiState.Loading
 
-            // Locate the episode — normally served from the Room cache
             val episodes = getEpisodesUseCase(animeId).getOrElse { error ->
                 _uiState.value = PlayerUiState.Error(
                     error.message ?: "Could not load episode list"
@@ -66,7 +49,16 @@ class PlayerViewModel @Inject constructor(
                 return@launch
             }
 
-            // Resolve the direct stream URL
+            // If episode is fully downloaded, use the cached URI directly.
+            // ExoPlayer's CacheDataSource reads from the Media3 cache for this URI,
+            // so no network call is made even when offline.
+            val cachedUri = episodeDownloader.getDownloadedUri(episode.id)
+            if (cachedUri != null) {
+                _uiState.value = PlayerUiState.Ready(cachedUri, episode)
+                return@launch
+            }
+
+            // Not downloaded — resolve the stream URL from the network as normal.
             getStreamUrlUseCase(episode)
                 .onSuccess { url -> _uiState.value = PlayerUiState.Ready(url, episode) }
                 .onFailure { error ->
