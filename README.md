@@ -81,6 +81,9 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.1
+- Fixed playback for anime-sama episodes hosted on embed4me.com (player uses a headless WebView to bypass Cloudflare bot protection and intercept the HLS stream URL)
+
 ### v1.0.10
 - Search history: the last 10 searches are saved locally
 - Tap the search field while empty to see recent searches

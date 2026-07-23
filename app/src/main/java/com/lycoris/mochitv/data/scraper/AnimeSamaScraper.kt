@@ -1,6 +1,7 @@
 package com.lycoris.mochitv.data.scraper
 
 import com.lycoris.mochitv.data.network.UserAgents
+import com.lycoris.mochitv.data.scraper.extractor.Embed4meExtractor
 import com.lycoris.mochitv.data.scraper.extractor.GenericExtractor
 import com.lycoris.mochitv.data.scraper.extractor.StreamExtractor
 import com.lycoris.mochitv.data.scraper.extractor.StreamtapeExtractor
@@ -53,6 +54,7 @@ private const val BASE_URL = "https://anime-sama.to/"
  */
 class AnimeSamaScraper @Inject constructor(
     private val okHttpClient: OkHttpClient,
+    private val embed4meExtractor: Embed4meExtractor,
 ) : AnimeScraper {
 
     override val site: SourceSite = SourceSite.ANIME_SAMA
@@ -147,6 +149,11 @@ class AnimeSamaScraper @Inject constructor(
      * the direct `.m3u8` / `.mp4` stream URL.
      */
     override suspend fun getStreamUrl(episodePageUrl: String): String = withContext(Dispatchers.IO) {
+        // embed4me is a Cloudflare-protected React SPA — needs WebView-based extraction.
+        if ("embed4me.com" in episodePageUrl) {
+            return@withContext embed4meExtractor.extract(episodePageUrl)
+        }
+
         val html = fetchRaw(episodePageUrl, referer = BASE_URL)
         val extractors: List<StreamExtractor> = listOf(
             VidmolyExtractor,
