@@ -3,11 +3,16 @@ package com.lycoris.mochitv.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lycoris.mochitv.domain.model.Anime
+import com.lycoris.mochitv.domain.usecase.ClearSearchHistoryUseCase
+import com.lycoris.mochitv.domain.usecase.DeleteSearchQueryUseCase
 import com.lycoris.mochitv.domain.usecase.GetLatestReleasesUseCase
+import com.lycoris.mochitv.domain.usecase.GetSearchHistoryUseCase
+import com.lycoris.mochitv.domain.usecase.SaveSearchQueryUseCase
 import com.lycoris.mochitv.domain.usecase.SearchAnimeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
@@ -15,6 +20,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -58,6 +64,10 @@ sealed interface HomeUiState {
 class HomeViewModel @Inject constructor(
     private val searchAnimeUseCase: SearchAnimeUseCase,
     private val getLatestReleasesUseCase: GetLatestReleasesUseCase,
+    private val saveSearchQueryUseCase: SaveSearchQueryUseCase,
+    private val deleteSearchQueryUseCase: DeleteSearchQueryUseCase,
+    private val clearSearchHistoryUseCase: ClearSearchHistoryUseCase,
+    getSearchHistoryUseCase: GetSearchHistoryUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
@@ -65,6 +75,9 @@ class HomeViewModel @Inject constructor(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    val searchHistory: StateFlow<List<String>> = getSearchHistoryUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ---- Latest releases pagination state ----------------------------------
 
@@ -119,6 +132,18 @@ class HomeViewModel @Inject constructor(
                 .onFailure { latestPage-- } // retry same page next time
             _isLoadingMore.value = false
         }
+    }
+
+    fun saveSearch(query: String) {
+        viewModelScope.launch { saveSearchQueryUseCase(query) }
+    }
+
+    fun deleteSearch(query: String) {
+        viewModelScope.launch { deleteSearchQueryUseCase(query) }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { clearSearchHistoryUseCase() }
     }
 
     // -------------------------------------------------------------------------

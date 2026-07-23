@@ -1,5 +1,6 @@
 package com.lycoris.mochitv.presentation.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,10 +10,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -25,11 +30,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,15 +49,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.lycoris.mochitv.domain.model.Anime
 
-/**
- * Home / search screen — the app's entry point.
- *
- * State is held in [HomeViewModel] and collected here as a snapshot;
- * the composable is stateless and only calls ViewModel methods on user actions.
- *
- * @param onAnimeClick Called with the tapped anime's id so the nav graph can
- *                     push the detail screen.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -60,6 +61,10 @@ fun HomeScreen(
     val latestReleases by viewModel.latestReleases.collectAsStateWithLifecycle()
     val isLatestLoading by viewModel.isLatestLoading.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
+    val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
+
+    var fieldFocused by remember { mutableStateOf(false) }
+    val showHistory = fieldFocused && searchQuery.isBlank() && searchHistory.isNotEmpty()
 
     Scaffold(
         topBar = {
@@ -82,27 +87,112 @@ fun HomeScreen(
                         contentDescription = "Search",
                     )
                 },
+                trailingIcon = if (searchQuery.isNotBlank()) {
+                    {
+                        IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear")
+                        }
+                    }
+                } else null,
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .onFocusChanged { fieldFocused = it.isFocused },
             )
 
-            when (val state = uiState) {
-                is HomeUiState.Idle -> LatestReleasesContent(
-                    animeList = latestReleases,
-                    isLoading = isLatestLoading,
-                    isLoadingMore = isLoadingMore,
-                    onAnimeClick = onAnimeClick,
-                    onRefresh = viewModel::refreshLatest,
-                    onLoadMore = viewModel::loadMoreLatest,
+            if (showHistory) {
+                SearchHistoryList(
+                    history = searchHistory,
+                    onEntryClick = { query ->
+                        viewModel.onSearchQueryChange(query)
+                    },
+                    onDeleteEntry = viewModel::deleteSearch,
+                    onClearAll = viewModel::clearHistory,
                 )
-                is HomeUiState.Loading -> LoadingContent()
-                is HomeUiState.Error   -> ErrorContent(message = state.message)
-                is HomeUiState.Success -> AnimeGrid(
-                    animeList = state.results,
-                    onAnimeClick = onAnimeClick,
-                )
+            } else {
+                when (val state = uiState) {
+                    is HomeUiState.Idle -> LatestReleasesContent(
+                        animeList = latestReleases,
+                        isLoading = isLatestLoading,
+                        isLoadingMore = isLoadingMore,
+                        onAnimeClick = { animeId ->
+                            if (searchQuery.isNotBlank()) viewModel.saveSearch(searchQuery)
+                            onAnimeClick(animeId)
+                        },
+                        onRefresh = viewModel::refreshLatest,
+                        onLoadMore = viewModel::loadMoreLatest,
+                    )
+
+                    is HomeUiState.Loading -> LoadingContent()
+                    is HomeUiState.Error -> ErrorContent(message = state.message)
+                    is HomeUiState.Success -> AnimeGrid(
+                        animeList = state.results,
+                        onAnimeClick = { animeId ->
+                            viewModel.saveSearch(searchQuery)
+                            onAnimeClick(animeId)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---- Search history --------------------------------------------------------
+
+@Composable
+private fun SearchHistoryList(
+    history: List<String>,
+    onEntryClick: (String) -> Unit,
+    onDeleteEntry: (String) -> Unit,
+    onClearAll: () -> Unit,
+) {
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 4.dp, top = 4.dp),
+        ) {
+            Text(
+                text = "Recent searches",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onClearAll) {
+                Text("Clear all")
+            }
+        }
+        LazyColumn {
+            items(history, key = { it }) { query ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onEntryClick(query) }
+                        .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 12.dp),
+                    )
+                    Text(
+                        text = query,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { onDeleteEntry(query) }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Remove",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }
@@ -110,12 +200,6 @@ fun HomeScreen(
 
 // ---- Sub-composables -------------------------------------------------------
 
-/**
- * Shown when no search is active (HomeUiState.Idle).
- *
- * Vertical infinite-scroll grid of latest releases from voir-anime.to.
- * Triggers [onLoadMore] when the user scrolls within 4 items of the bottom.
- */
 @Composable
 private fun LatestReleasesContent(
     animeList: List<Anime>,
@@ -165,7 +249,6 @@ private fun LatestReleasesContent(
             else -> {
                 val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 
-                // Trigger load-more when within 4 items of the end
                 val shouldLoadMore = androidx.compose.runtime.remember {
                     androidx.compose.runtime.derivedStateOf {
                         val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -277,7 +360,7 @@ private fun AnimeCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(2f / 3f), // standard poster ratio
+                    .aspectRatio(2f / 3f),
             )
             Text(
                 text = anime.title,

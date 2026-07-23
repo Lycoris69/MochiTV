@@ -7,14 +7,17 @@ import com.lycoris.mochitv.data.local.MochiDatabase
 import com.lycoris.mochitv.data.local.dao.AnimeDao
 import com.lycoris.mochitv.data.local.dao.BookmarkDao
 import com.lycoris.mochitv.data.local.dao.EpisodeDao
+import com.lycoris.mochitv.data.local.dao.SearchHistoryDao
 import com.lycoris.mochitv.data.network.UserAgents
 import com.lycoris.mochitv.data.repository.AnimeRepositoryImpl
 import com.lycoris.mochitv.data.repository.BookmarkRepositoryImpl
+import com.lycoris.mochitv.data.repository.SearchHistoryRepositoryImpl
 import com.lycoris.mochitv.data.scraper.AnimeScraper
 import com.lycoris.mochitv.data.scraper.AnimeSamaScraper
 import com.lycoris.mochitv.data.scraper.VoirAnimeScraper
 import com.lycoris.mochitv.domain.repository.AnimeRepository
 import com.lycoris.mochitv.domain.repository.BookmarkRepository
+import com.lycoris.mochitv.domain.repository.SearchHistoryRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -56,6 +59,10 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindBookmarkRepository(impl: BookmarkRepositoryImpl): BookmarkRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSearchHistoryRepository(impl: SearchHistoryRepositoryImpl): SearchHistoryRepository
 
     // -------------------------------------------------------------------------
     // Scraper multi-bindings (Set<AnimeScraper>)
@@ -128,6 +135,10 @@ abstract class AppModule {
         @Provides
         @Singleton
         fun provideBookmarkDao(db: MochiDatabase): BookmarkDao = db.bookmarkDao()
+
+        @Provides
+        @Singleton
+        fun provideSearchHistoryDao(db: MochiDatabase): SearchHistoryDao = db.searchHistoryDao()
 
         /**
          * Coil [ImageLoader] with a Referer interceptor.
