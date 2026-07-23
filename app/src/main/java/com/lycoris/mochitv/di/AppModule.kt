@@ -5,13 +5,16 @@ import androidx.room.Room
 import coil.ImageLoader
 import com.lycoris.mochitv.data.local.MochiDatabase
 import com.lycoris.mochitv.data.local.dao.AnimeDao
+import com.lycoris.mochitv.data.local.dao.BookmarkDao
 import com.lycoris.mochitv.data.local.dao.EpisodeDao
 import com.lycoris.mochitv.data.network.UserAgents
 import com.lycoris.mochitv.data.repository.AnimeRepositoryImpl
+import com.lycoris.mochitv.data.repository.BookmarkRepositoryImpl
 import com.lycoris.mochitv.data.scraper.AnimeScraper
 import com.lycoris.mochitv.data.scraper.AnimeSamaScraper
 import com.lycoris.mochitv.data.scraper.VoirAnimeScraper
 import com.lycoris.mochitv.domain.repository.AnimeRepository
+import com.lycoris.mochitv.domain.repository.BookmarkRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -49,6 +52,10 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindAnimeRepository(impl: AnimeRepositoryImpl): AnimeRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBookmarkRepository(impl: BookmarkRepositoryImpl): BookmarkRepository
 
     // -------------------------------------------------------------------------
     // Scraper multi-bindings (Set<AnimeScraper>)
@@ -108,7 +115,7 @@ abstract class AppModule {
             context,
             MochiDatabase::class.java,
             "mochi_db",
-        ).build()
+        ).fallbackToDestructiveMigration().build()
 
         @Provides
         @Singleton
@@ -117,6 +124,10 @@ abstract class AppModule {
         @Provides
         @Singleton
         fun provideEpisodeDao(db: MochiDatabase): EpisodeDao = db.episodeDao()
+
+        @Provides
+        @Singleton
+        fun provideBookmarkDao(db: MochiDatabase): BookmarkDao = db.bookmarkDao()
 
         /**
          * Coil [ImageLoader] with a Referer interceptor.

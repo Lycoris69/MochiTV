@@ -3,12 +3,17 @@ package com.lycoris.mochitv.presentation.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lycoris.mochitv.domain.usecase.BookmarkAnimeUseCase
 import com.lycoris.mochitv.domain.usecase.GetAnimeDetailUseCase
 import com.lycoris.mochitv.domain.usecase.GetEpisodesUseCase
+import com.lycoris.mochitv.domain.usecase.IsBookmarkedUseCase
+import com.lycoris.mochitv.domain.usecase.UnbookmarkAnimeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -33,6 +38,9 @@ class DetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getAnimeDetailUseCase: GetAnimeDetailUseCase,
     private val getEpisodesUseCase: GetEpisodesUseCase,
+    private val bookmarkAnimeUseCase: BookmarkAnimeUseCase,
+    private val unbookmarkAnimeUseCase: UnbookmarkAnimeUseCase,
+    isBookmarkedUseCase: IsBookmarkedUseCase,
 ) : ViewModel() {
 
     private val animeId: String = checkNotNull(savedStateHandle["animeId"]) {
@@ -42,12 +50,22 @@ class DetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<DetailUiState>(DetailUiState.Loading)
     val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
 
+    val isBookmarked: StateFlow<Boolean> = isBookmarkedUseCase(animeId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     init {
         loadDetail()
     }
 
     /** Retry loading after an error. */
     fun retry() = loadDetail()
+
+    fun toggleBookmark() {
+        viewModelScope.launch {
+            if (isBookmarked.value) unbookmarkAnimeUseCase(animeId)
+            else bookmarkAnimeUseCase(animeId)
+        }
+    }
 
     private fun loadDetail() {
         viewModelScope.launch {

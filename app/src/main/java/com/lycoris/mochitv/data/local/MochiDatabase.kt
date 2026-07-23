@@ -5,8 +5,10 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.lycoris.mochitv.data.local.converter.Converters
 import com.lycoris.mochitv.data.local.dao.AnimeDao
+import com.lycoris.mochitv.data.local.dao.BookmarkDao
 import com.lycoris.mochitv.data.local.dao.EpisodeDao
 import com.lycoris.mochitv.data.local.entity.AnimeEntity
+import com.lycoris.mochitv.data.local.entity.BookmarkEntity
 import com.lycoris.mochitv.data.local.entity.EpisodeEntity
 
 /**
@@ -22,8 +24,8 @@ import com.lycoris.mochitv.data.local.entity.EpisodeEntity
  * implementations for each version bump.
  */
 @Database(
-    entities = [AnimeEntity::class, EpisodeEntity::class],
-    version = 1,
+    entities = [AnimeEntity::class, EpisodeEntity::class, BookmarkEntity::class],
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -32,4 +34,6 @@ abstract class MochiDatabase : RoomDatabase() {
     abstract fun animeDao(): AnimeDao
 
     abstract fun episodeDao(): EpisodeDao
+
+    abstract fun bookmarkDao(): BookmarkDao
 }

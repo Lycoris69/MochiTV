@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,6 +68,7 @@ fun DetailScreen(
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isBookmarked by viewModel.isBookmarked.collectAsStateWithLifecycle()
 
     when (val state = uiState) {
         is DetailUiState.Loading -> {
@@ -92,6 +95,8 @@ fun DetailScreen(
             DetailContent(
                 anime = state.anime,
                 episodes = state.episodes,
+                isBookmarked = isBookmarked,
+                onToggleBookmark = viewModel::toggleBookmark,
                 onEpisodeClick = onEpisodeClick,
                 onBack = onBack,
                 modifier = modifier,
@@ -107,6 +112,8 @@ fun DetailScreen(
 private fun DetailContent(
     anime: Anime,
     episodes: List<Episode>,
+    isBookmarked: Boolean,
+    onToggleBookmark: () -> Unit,
     onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -129,6 +136,18 @@ private fun DetailContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onToggleBookmark) {
+                        Icon(
+                            imageVector = if (isBookmarked) Icons.Filled.Bookmark
+                                          else Icons.Filled.BookmarkBorder,
+                            contentDescription = if (isBookmarked) "Remove bookmark"
+                                                 else "Add bookmark",
+                            tint = if (isBookmarked) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },

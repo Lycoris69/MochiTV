@@ -1,29 +1,34 @@
 package com.lycoris.mochitv.presentation.navigation
 
 import android.net.Uri
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.lycoris.mochitv.presentation.detail.DetailScreen
 import com.lycoris.mochitv.presentation.home.HomeScreen
+import com.lycoris.mochitv.presentation.library.LibraryScreen
 import com.lycoris.mochitv.presentation.player.PlayerScreen
 
-/**
- * All top-level navigation destinations.
- *
- * Path parameters are URL-encoded via [Uri.encode] when creating a route so
- * that IDs containing special characters (slashes, spaces, etc.) do not break
- * the Navigation component's route matching.  Navigation automatically
- * URL-decodes path arguments when extracting them from [androidx.lifecycle.SavedStateHandle].
- */
 sealed class Screen(val route: String) {
-
-    data object Home : Screen("home")
+    data object Home    : Screen("home")
+    data object Library : Screen("library")
 
     data object Detail : Screen("detail/{animeId}") {
         fun createRoute(animeId: String) = "detail/${Uri.encode(animeId)}"
@@ -35,56 +40,88 @@ sealed class Screen(val route: String) {
     }
 }
 
-/**
- * Compose [NavHost] wiring all screens together.
- *
- * The [navController] parameter is exposed so callers can pass a test controller;
- * production callers can use the default [rememberNavController].
- */
+private val bottomNavItems = listOf(
+    Triple(Screen.Home,    "Home",    Icons.Filled.Home),
+    Triple(Screen.Library, "Library", Icons.Filled.Bookmark),
+)
+
 @Composable
 fun AppNavGraph(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Home.route,
+    val backStack by navController.currentBackStackEntryAsState()
+    val currentDest = backStack?.destination
+    val showBottomBar = currentDest?.route in setOf(Screen.Home.route, Screen.Library.route)
+
+    Scaffold(
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar {
+                    bottomNavItems.forEach { (screen, label, icon) ->
+                        NavigationBarItem(
+                            selected = currentDest?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(icon, contentDescription = label) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
+        },
         modifier = modifier,
-    ) {
-
-        // ---- Home / Search -------------------------------------------------
-        composable(Screen.Home.route) {
-            HomeScreen(
-                onAnimeClick = { animeId ->
-                    navController.navigate(Screen.Detail.createRoute(animeId))
-                },
-            )
-        }
-
-        // ---- Anime detail --------------------------------------------------
-        composable(
-            route = Screen.Detail.route,
-            arguments = listOf(
-                navArgument("animeId") { type = NavType.StringType },
-            ),
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Home.route,
         ) {
-            DetailScreen(
-                onEpisodeClick = { episodeId, animeId ->
-                    navController.navigate(Screen.Player.createRoute(episodeId, animeId))
-                },
-                onBack = { navController.popBackStack() },
-            )
-        }
+            composable(Screen.Home.route) {
+                HomeScreen(
+                    onAnimeClick = { animeId ->
+                        navController.navigate(Screen.Detail.createRoute(animeId))
+                    },
+                )
+            }
 
-        // ---- Video player --------------------------------------------------
-        composable(
-            route = Screen.Player.route,
-            arguments = listOf(
-                navArgument("episodeId") { type = NavType.StringType },
-                navArgument("animeId")   { type = NavType.StringType },
-            ),
-        ) {
-            PlayerScreen(onBack = { navController.popBackStack() })
+            composable(Screen.Library.route) {
+                LibraryScreen(
+                    onAnimeClick = { animeId ->
+                        navController.navigate(Screen.Detail.createRoute(animeId))
+                    },
+                )
+            }
+
+            composable(
+                route = Screen.Detail.route,
+                arguments = listOf(navArgument("animeId") { type = NavType.StringType }),
+            ) {
+                DetailScreen(
+                    onEpisodeClick = { episodeId, animeId ->
+                        navController.navigate(Screen.Player.createRoute(episodeId, animeId))
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            composable(
+                route = Screen.Player.route,
+                arguments = listOf(
+                    navArgument("episodeId") { type = NavType.StringType },
+                    navArgument("animeId")   { type = NavType.StringType },
+                ),
+            ) {
+                PlayerScreen(onBack = { navController.popBackStack() })
+            }
         }
+        // suppress unused innerPadding — Scaffold handles insets via NavigationBar
+        innerPadding
     }
 }
