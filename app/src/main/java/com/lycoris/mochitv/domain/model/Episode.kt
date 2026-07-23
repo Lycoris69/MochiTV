@@ -7,7 +7,7 @@ package com.lycoris.mochitv.domain.model
  * scraper to extract the actual video stream URL on demand.
  */
 data class Episode(
-    /** Unique identifier, e.g. `"flixnet_ep_naruto_1"`. */
+    /** Unique identifier, e.g. `"animesama_ep_naruto_1"`. */
     val id: String,
     /** Foreign key linking this episode to its parent [Anime.id]. */
     val animeId: String,

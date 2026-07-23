@@ -3,7 +3,7 @@ package com.lycoris.mochitv.domain.model
 /**
  * Represents a single anime series sourced from a scraper.
  *
- * The [id] is prefixed with the source name (e.g. `"flixnet_naruto"`) so that
+ * The [id] is prefixed with the source name (e.g. `"animesama_naruto"`) so that
  * results from different scrapers can coexist in the same list without collision.
  */
 data class Anime(
@@ -31,6 +31,6 @@ enum class AnimeStatus {
 
 /** Identifies which scraper / site produced a given piece of data. */
 enum class SourceSite {
-    FLIXNET,
+    ANIME_SAMA,
     VOIR_ANIME,
 }

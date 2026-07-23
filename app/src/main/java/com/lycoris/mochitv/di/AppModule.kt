@@ -9,7 +9,7 @@ import com.lycoris.mochitv.data.local.dao.EpisodeDao
 import com.lycoris.mochitv.data.network.UserAgents
 import com.lycoris.mochitv.data.repository.AnimeRepositoryImpl
 import com.lycoris.mochitv.data.scraper.AnimeScraper
-import com.lycoris.mochitv.data.scraper.FlixnetScraper
+import com.lycoris.mochitv.data.scraper.AnimeSamaScraper
 import com.lycoris.mochitv.data.scraper.VoirAnimeScraper
 import com.lycoris.mochitv.domain.repository.AnimeRepository
 import dagger.Binds
@@ -56,7 +56,7 @@ abstract class AppModule {
 
     @Binds
     @IntoSet
-    abstract fun bindFlixnetScraper(scraper: FlixnetScraper): AnimeScraper
+    abstract fun bindAnimeSamaScraper(scraper: AnimeSamaScraper): AnimeScraper
 
     @Binds
     @IntoSet

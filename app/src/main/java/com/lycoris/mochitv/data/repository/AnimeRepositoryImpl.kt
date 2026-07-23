@@ -130,13 +130,13 @@ class AnimeRepositoryImpl @Inject constructor(
 /** Short prefix used to encode the source in an [Anime.id]. */
 private val SourceSite.idPrefix: String
     get() = when (this) {
-        SourceSite.FLIXNET    -> "flixnet"
+        SourceSite.ANIME_SAMA -> "animesama"
         SourceSite.VOIR_ANIME -> "voir"
     }
 
 /** Root URL of the source site (trailing slash included). */
 private val SourceSite.baseUrl: String
     get() = when (this) {
-        SourceSite.FLIXNET    -> "https://flixnet.site/animesama/"
+        SourceSite.ANIME_SAMA -> "https://anime-sama.to/"
         SourceSite.VOIR_ANIME -> "https://voir-anime.to/"
     }
