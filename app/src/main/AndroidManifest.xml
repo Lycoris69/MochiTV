@@ -4,6 +4,11 @@
     <!-- Required for all scraping network calls -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Required by DownloadManager on API 26–28 to write to the public Downloads folder -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <application
         android:name=".MochiTVApp"
         android:allowBackup="true"

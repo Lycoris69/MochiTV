@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,11 +30,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,15 +55,6 @@ import com.lycoris.mochitv.domain.model.Anime
 import com.lycoris.mochitv.domain.model.AnimeStatus
 import com.lycoris.mochitv.domain.model.Episode
 
-/**
- * Anime detail screen.
- *
- * Displays a backdrop image, title, genres, status, rating, collapsible synopsis,
- * and a scrollable episode list.  All state is managed by [DetailViewModel].
- *
- * @param onEpisodeClick Called when the user taps an episode row.
- * @param onBack         Called when the user taps the back arrow in the app bar.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
@@ -69,6 +65,14 @@ fun DetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isBookmarked by viewModel.isBookmarked.collectAsStateWithLifecycle()
+    val downloadingEpisodes by viewModel.downloadingEpisodes.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(viewModel) {
+        viewModel.downloadEvents.collect { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
 
     when (val state = uiState) {
         is DetailUiState.Loading -> {
@@ -98,6 +102,9 @@ fun DetailScreen(
                 isBookmarked = isBookmarked,
                 onToggleBookmark = viewModel::toggleBookmark,
                 onEpisodeClick = onEpisodeClick,
+                onDownload = viewModel::downloadEpisode,
+                downloadingEpisodes = downloadingEpisodes,
+                snackbarHostState = snackbarHostState,
                 onBack = onBack,
                 modifier = modifier,
             )
@@ -115,10 +122,12 @@ private fun DetailContent(
     isBookmarked: Boolean,
     onToggleBookmark: () -> Unit,
     onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
+    onDownload: (Episode) -> Unit,
+    downloadingEpisodes: Set<String>,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // State hoisted above the LazyColumn so it survives scrolling
     var synopsisExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -153,6 +162,7 @@ private fun DetailContent(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
@@ -270,12 +280,13 @@ private fun DetailContent(
                     EpisodeRow(
                         episode = episode,
                         onClick = { onEpisodeClick(episode.id, episode.animeId) },
+                        onDownload = { onDownload(episode) },
+                        isDownloading = episode.id in downloadingEpisodes,
                     )
                     HorizontalDivider()
                 }
             }
 
-            // Bottom spacer so FABs / nav bars don't obscure last episode
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
@@ -307,16 +318,17 @@ private fun StatusBadge(status: AnimeStatus) {
 private fun EpisodeRow(
     episode: Episode,
     onClick: () -> Unit,
+    onDownload: () -> Unit,
+    isDownloading: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Episode number badge
         Text(
             text = "Ep ${episode.number}",
             style = MaterialTheme.typography.labelLarge,
@@ -342,6 +354,23 @@ private fun EpisodeRow(
                     text = formatDuration(secs),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (isDownloading) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .size(20.dp),
+                strokeWidth = 2.dp,
+            )
+        } else {
+            IconButton(onClick = onDownload) {
+                Icon(
+                    imageVector = Icons.Filled.Download,
+                    contentDescription = "Download episode ${episode.number}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

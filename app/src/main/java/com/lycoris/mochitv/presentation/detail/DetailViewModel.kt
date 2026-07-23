@@ -3,36 +3,25 @@ package com.lycoris.mochitv.presentation.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lycoris.mochitv.domain.model.Episode
 import com.lycoris.mochitv.domain.usecase.BookmarkAnimeUseCase
+import com.lycoris.mochitv.domain.usecase.DownloadEpisodeUseCase
 import com.lycoris.mochitv.domain.usecase.GetAnimeDetailUseCase
 import com.lycoris.mochitv.domain.usecase.GetEpisodesUseCase
 import com.lycoris.mochitv.domain.usecase.IsBookmarkedUseCase
 import com.lycoris.mochitv.domain.usecase.UnbookmarkAnimeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * ViewModel for the anime detail screen.
- *
- * ### Data flow
- * 1. [animeId] is read from [SavedStateHandle] (populated by Navigation Compose).
- * 2. [GetAnimeDetailUseCase] reads the anime from the local Room cache — fast,
- *    no network needed because [com.lycoris.mochitv.presentation.home.HomeViewModel]
- *    populated the cache when the user performed the search.
- * 3. [GetEpisodesUseCase] scrapes the episode list from the source site and
- *    caches it in Room for the player screen.
- * 4. Steps 2 and 3 are sequential; the state transitions
- *    Loading → Success (or Error) once both complete.
- *
- * State is exposed as an immutable [StateFlow] collected by the Compose UI via
- * `collectAsStateWithLifecycle`.
- */
 @HiltViewModel
 class DetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -41,6 +30,7 @@ class DetailViewModel @Inject constructor(
     private val bookmarkAnimeUseCase: BookmarkAnimeUseCase,
     private val unbookmarkAnimeUseCase: UnbookmarkAnimeUseCase,
     isBookmarkedUseCase: IsBookmarkedUseCase,
+    private val downloadEpisodeUseCase: DownloadEpisodeUseCase,
 ) : ViewModel() {
 
     private val animeId: String = checkNotNull(savedStateHandle["animeId"]) {
@@ -53,11 +43,18 @@ class DetailViewModel @Inject constructor(
     val isBookmarked: StateFlow<Boolean> = isBookmarkedUseCase(animeId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /** Episode IDs currently having their stream URL resolved for download. */
+    private val _downloadingEpisodes = MutableStateFlow<Set<String>>(emptySet())
+    val downloadingEpisodes: StateFlow<Set<String>> = _downloadingEpisodes.asStateFlow()
+
+    /** One-shot messages for the snackbar (success or error from a download attempt). */
+    private val _downloadEvents = Channel<String>(Channel.BUFFERED)
+    val downloadEvents = _downloadEvents.receiveAsFlow()
+
     init {
         loadDetail()
     }
 
-    /** Retry loading after an error. */
     fun retry() = loadDetail()
 
     fun toggleBookmark() {
@@ -67,11 +64,28 @@ class DetailViewModel @Inject constructor(
         }
     }
 
+    fun downloadEpisode(episode: Episode) {
+        if (episode.id in _downloadingEpisodes.value) return
+        viewModelScope.launch {
+            _downloadingEpisodes.update { it + episode.id }
+            val animeName = (_uiState.value as? DetailUiState.Success)?.anime?.title ?: "MochiTV"
+            downloadEpisodeUseCase(episode, animeName)
+                .onSuccess { _downloadEvents.send("Download started") }
+                .onFailure { e ->
+                    val msg = when (e) {
+                        is UnsupportedOperationException -> e.message ?: "Cannot download this episode"
+                        else -> "Download failed: ${e.message}"
+                    }
+                    _downloadEvents.send(msg)
+                }
+            _downloadingEpisodes.update { it - episode.id }
+        }
+    }
+
     private fun loadDetail() {
         viewModelScope.launch {
             _uiState.value = DetailUiState.Loading
 
-            // 1. Load anime metadata from cache (fast Room read)
             val anime = getAnimeDetailUseCase(animeId).getOrElse { error ->
                 _uiState.value = DetailUiState.Error(
                     error.message ?: "Could not load anime details"
@@ -79,7 +93,6 @@ class DetailViewModel @Inject constructor(
                 return@launch
             }
 
-            // 2. Fetch episodes from scraper — also updates anime synopsis in Room as a side-effect
             val episodes = getEpisodesUseCase(animeId).getOrElse { error ->
                 _uiState.value = DetailUiState.Error(
                     error.message ?: "Could not load episode list"
@@ -87,9 +100,7 @@ class DetailViewModel @Inject constructor(
                 return@launch
             }
 
-            // 3. Re-read anime from cache to pick up the synopsis saved in step 2
             val animeWithSynopsis = getAnimeDetailUseCase(animeId).getOrDefault(anime)
-
             _uiState.value = DetailUiState.Success(animeWithSynopsis, episodes)
         }
     }

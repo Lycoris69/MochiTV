@@ -81,6 +81,12 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.3
+- Download episodes to `Downloads/MochiTV/<anime>/<episode>.mp4` via the system DownloadManager
+- Download button appears on every episode row; spins while the stream URL is being resolved
+- Progress and completion are shown in the system notification tray
+- HLS streams surface a clear "cannot download" message instead of silently failing
+
 ### v1.1.2
 - Anime-sama episodes now use **Sibnet** (player 3) by default — reliable playback with no bot protection issues
 - All player arrays (eps1–eps5) are parsed; best source is chosen automatically (sibnet > vidmoly > streamtape > others > embed4me)
@@ -130,5 +136,5 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Roadmap
 
-- [ ] Search history
-- [ ] Download support
+- [x] Search history
+- [x] Download support
