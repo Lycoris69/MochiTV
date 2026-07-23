@@ -5,11 +5,14 @@ import com.lycoris.mochitv.domain.model.Episode
 import javax.inject.Inject
 
 /**
- * Use case: resolve the stream URL for [episode] and enqueue it in the system
- * DownloadManager under the given [animeName] directory.
+ * Use case: resolve the stream URL for [episode] and hand it off to
+ * [EpisodeDownloader] which starts a Media3 background download.
  *
- * Returns [Result.failure] if the stream URL cannot be resolved or if the
- * stream format is unsupported for offline download (e.g. HLS).
+ * Both MP4 and HLS streams are supported — Media3 handles segment
+ * reassembly for HLS automatically.
+ *
+ * Returns [Result.failure] if the stream URL cannot be resolved or if
+ * the download service cannot be started.
  */
 class DownloadEpisodeUseCase @Inject constructor(
     private val getStreamUrlUseCase: GetStreamUrlUseCase,
@@ -17,6 +20,12 @@ class DownloadEpisodeUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(episode: Episode, animeName: String): Result<Unit> =
         getStreamUrlUseCase(episode).mapCatching { url ->
-            downloader.enqueue(url, animeName, episode.number, episode.title)
+            downloader.enqueue(
+                streamUrl = url,
+                episodeId = episode.id,
+                animeName = animeName,
+                episodeNumber = episode.number,
+                episodeTitle = episode.title,
+            )
         }
 }

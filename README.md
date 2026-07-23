@@ -81,6 +81,10 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.5
+- Downloads now work for HLS streams (Vidmoly, voir-anime, etc.) — switched from the system DownloadManager to Media3's `DownloadService` which reassembles all HLS segments automatically
+- Downloaded episodes are cached in the app's external files directory and play offline via ExoPlayer's `CacheDataSource`
+
 ### v1.1.4
 - Fixed crash when tapping the download button (`Result.map` was not catching exceptions thrown by the system DownloadManager — changed to `mapCatching` so errors surface as a snackbar instead of killing the app)
 

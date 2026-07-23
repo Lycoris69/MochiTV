@@ -30,8 +30,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import com.lycoris.mochitv.data.download.DownloadManagerHolder
 
 /**
  * Full-screen video player screen.
@@ -121,8 +125,17 @@ private fun VideoPlayer(
 ) {
     val context = LocalContext.current
 
-    // ExoPlayer survives recompositions; released in DisposableEffect below
-    val exoPlayer = remember { ExoPlayer.Builder(context).build() }
+    // CacheDataSource reads from the Media3 download cache when content is available
+    // offline, and falls back to the network when it is not.
+    val exoPlayer = remember {
+        val cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(DownloadManagerHolder.getCache(context))
+            .setUpstreamDataSourceFactory(DefaultHttpDataSource.Factory())
+            .setCacheWriteDataSinkFactory(null) // don't cache on-demand streams
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
+            .build()
+    }
 
     LaunchedEffect(streamUrl) {
         exoPlayer.setMediaItem(MediaItem.fromUri(streamUrl))

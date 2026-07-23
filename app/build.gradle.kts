@@ -14,8 +14,8 @@ android {
         applicationId = "com.lycoris.mochitv"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.1.4"
+        versionCode = 17
+        versionName = "1.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -50,6 +50,9 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        // Opt-in globally so Media3 @UnstableApi classes (DownloadService, SimpleCache, etc.)
+        // can be used without per-file @OptIn annotations.
+        freeCompilerArgs += listOf("-Xopt-in=androidx.media3.common.util.UnstableApi")
     }
 
     buildFeatures {
@@ -103,11 +106,12 @@ dependencies {
     // JSON serialisation for Room type converters
     implementation(libs.gson)
 
-    // Video playback
+    // Video playback + downloads
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.exoplayer.dash)
     implementation(libs.media3.ui)
+    implementation(libs.media3.database)
 
     // Image loading
     implementation(libs.coil.compose)

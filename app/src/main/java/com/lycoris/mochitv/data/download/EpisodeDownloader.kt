@@ -1,43 +1,40 @@
 package com.lycoris.mochitv.data.download
 
-import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.DownloadService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Enqueues episode downloads via Media3's [DownloadService].
+ *
+ * Both direct MP4 URLs and HLS playlists (.m3u8) are handled correctly:
+ * Media3 downloads all HLS segments automatically and caches them for
+ * offline playback in ExoPlayer via [DownloadManagerHolder.getCache].
+ *
+ * Downloaded content lives in `<externalFilesDir>/media3_downloads/`.
+ */
 @Singleton
 class EpisodeDownloader @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    /**
-     * Enqueues [streamUrl] in the system DownloadManager.
-     *
-     * The file is saved to Downloads/MochiTV/<animeName>/<episodeTitle>.mp4.
-     * Throws [UnsupportedOperationException] for HLS streams (.m3u8) because the
-     * system DownloadManager cannot reassemble HLS segments.
-     */
-    fun enqueue(streamUrl: String, animeName: String, episodeNumber: Int, episodeTitle: String?) {
-        if (streamUrl.contains(".m3u8")) {
-            throw UnsupportedOperationException("HLS streams cannot be saved for offline playback")
-        }
+    fun enqueue(
+        streamUrl: String,
+        episodeId: String,
+        animeName: String,
+        episodeNumber: Int,
+        episodeTitle: String?,
+    ) {
+        val request = DownloadRequest.Builder(episodeId, Uri.parse(streamUrl)).build()
 
-        val safeAnime = animeName.sanitize().take(50)
-        val safeTitle = (episodeTitle?.sanitize()?.take(60)) ?: "Episode $episodeNumber"
-        val subPath = "MochiTV/$safeAnime/$safeTitle.mp4"
-
-        val request = DownloadManager.Request(Uri.parse(streamUrl))
-            .setTitle("$safeTitle — $safeAnime")
-            .setDescription("Downloading via MochiTV")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, subPath)
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
-
-        (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+        DownloadService.sendAddDownload(
+            context,
+            MochiDownloadService::class.java,
+            request,
+            /* foreground = */ false,
+        )
     }
-
-    private fun String.sanitize() = replace(Regex("""[/\\:*?"<>|]"""), "_").trim()
 }
