@@ -3,6 +3,8 @@ package com.lycoris.mochitv.presentation.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.exoplayer.offline.Download
+import com.lycoris.mochitv.data.download.EpisodeDownloader
 import com.lycoris.mochitv.domain.model.Episode
 import com.lycoris.mochitv.domain.usecase.BookmarkAnimeUseCase
 import com.lycoris.mochitv.domain.usecase.DownloadEpisodeUseCase
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -31,6 +34,7 @@ class DetailViewModel @Inject constructor(
     private val unbookmarkAnimeUseCase: UnbookmarkAnimeUseCase,
     isBookmarkedUseCase: IsBookmarkedUseCase,
     private val downloadEpisodeUseCase: DownloadEpisodeUseCase,
+    private val episodeDownloader: EpisodeDownloader,
 ) : ViewModel() {
 
     private val animeId: String = checkNotNull(savedStateHandle["animeId"]) {
@@ -43,11 +47,36 @@ class DetailViewModel @Inject constructor(
     val isBookmarked: StateFlow<Boolean> = isBookmarkedUseCase(animeId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** Episode IDs currently having their stream URL resolved for download. */
-    private val _downloadingEpisodes = MutableStateFlow<Set<String>>(emptySet())
-    val downloadingEpisodes: StateFlow<Set<String>> = _downloadingEpisodes.asStateFlow()
+    /** Episodes whose stream URL is currently being resolved (before Media3 takes over). */
+    private val _resolvingEpisodes = MutableStateFlow<Set<String>>(emptySet())
 
-    /** One-shot messages for the snackbar (success or error from a download attempt). */
+    /**
+     * Per-episode download state, combining the "resolving" phase tracked locally
+     * with the live state from Media3's DownloadManager.
+     *
+     * Episodes not present in the map are [EpisodeDownloadState.None].
+     */
+    val episodeDownloadStates: StateFlow<Map<String, EpisodeDownloadState>> = combine(
+        _resolvingEpisodes,
+        episodeDownloader.observeStates(),
+    ) { resolving, media3States ->
+        buildMap {
+            media3States.forEach { (id, state) ->
+                put(id, when (state) {
+                    Download.STATE_QUEUED      -> EpisodeDownloadState.Queued
+                    Download.STATE_DOWNLOADING -> EpisodeDownloadState.Downloading
+                    Download.STATE_COMPLETED   -> EpisodeDownloadState.Completed
+                    Download.STATE_FAILED      -> EpisodeDownloadState.Failed
+                    Download.STATE_STOPPED     -> EpisodeDownloadState.Queued
+                    else                       -> EpisodeDownloadState.None
+                })
+            }
+            // "Resolving" phase takes precedence over any stale Media3 state
+            resolving.forEach { id -> put(id, EpisodeDownloadState.Resolving) }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** One-shot messages forwarded to the Snackbar. */
     private val _downloadEvents = Channel<String>(Channel.BUFFERED)
     val downloadEvents = _downloadEvents.receiveAsFlow()
 
@@ -65,20 +94,16 @@ class DetailViewModel @Inject constructor(
     }
 
     fun downloadEpisode(episode: Episode) {
-        if (episode.id in _downloadingEpisodes.value) return
+        if (episode.id in _resolvingEpisodes.value) return
         viewModelScope.launch {
-            _downloadingEpisodes.update { it + episode.id }
+            _resolvingEpisodes.update { it + episode.id }
             val animeName = (_uiState.value as? DetailUiState.Success)?.anime?.title ?: "MochiTV"
             downloadEpisodeUseCase(episode, animeName)
                 .onSuccess { _downloadEvents.send("Download started") }
                 .onFailure { e ->
-                    val msg = when (e) {
-                        is UnsupportedOperationException -> e.message ?: "Cannot download this episode"
-                        else -> "Download failed: ${e.message}"
-                    }
-                    _downloadEvents.send(msg)
+                    _downloadEvents.send(e.message ?: "Download failed")
                 }
-            _downloadingEpisodes.update { it - episode.id }
+            _resolvingEpisodes.update { it - episode.id }
         }
     }
 

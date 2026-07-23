@@ -81,6 +81,10 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.1.6
+- Download button now reflects the real download state: spinner while resolving or downloading, green checkmark when complete, red error icon on failure (tap to retry)
+- Download states persist across screen navigation — already-downloaded episodes show the checkmark when you reopen the detail screen
+
 ### v1.1.5
 - Downloads now work for HLS streams (Vidmoly, voir-anime, etc.) — switched from the system DownloadManager to Media3's `DownloadService` which reassembles all HLS segments automatically
 - Downloaded episodes are cached in the app's external files directory and play offline via ExoPlayer's `CacheDataSource`

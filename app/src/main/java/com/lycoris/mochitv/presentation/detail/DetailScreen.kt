@@ -22,6 +22,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,7 +67,7 @@ fun DetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isBookmarked by viewModel.isBookmarked.collectAsStateWithLifecycle()
-    val downloadingEpisodes by viewModel.downloadingEpisodes.collectAsStateWithLifecycle()
+    val episodeDownloadStates by viewModel.episodeDownloadStates.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
@@ -103,7 +105,7 @@ fun DetailScreen(
                 onToggleBookmark = viewModel::toggleBookmark,
                 onEpisodeClick = onEpisodeClick,
                 onDownload = viewModel::downloadEpisode,
-                downloadingEpisodes = downloadingEpisodes,
+                episodeDownloadStates = episodeDownloadStates,
                 snackbarHostState = snackbarHostState,
                 onBack = onBack,
                 modifier = modifier,
@@ -123,7 +125,7 @@ private fun DetailContent(
     onToggleBookmark: () -> Unit,
     onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
     onDownload: (Episode) -> Unit,
-    downloadingEpisodes: Set<String>,
+    episodeDownloadStates: Map<String, EpisodeDownloadState>,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -281,7 +283,8 @@ private fun DetailContent(
                         episode = episode,
                         onClick = { onEpisodeClick(episode.id, episode.animeId) },
                         onDownload = { onDownload(episode) },
-                        isDownloading = episode.id in downloadingEpisodes,
+                        downloadState = episodeDownloadStates[episode.id]
+                            ?: EpisodeDownloadState.None,
                     )
                     HorizontalDivider()
                 }
@@ -319,7 +322,7 @@ private fun EpisodeRow(
     episode: Episode,
     onClick: () -> Unit,
     onDownload: () -> Unit,
-    isDownloading: Boolean,
+    downloadState: EpisodeDownloadState,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -358,15 +361,35 @@ private fun EpisodeRow(
             }
         }
 
-        if (isDownloading) {
-            CircularProgressIndicator(
+        // Download status indicator
+        when (downloadState) {
+            EpisodeDownloadState.Resolving,
+            EpisodeDownloadState.Queued,
+            EpisodeDownloadState.Downloading -> CircularProgressIndicator(
                 modifier = Modifier
                     .padding(horizontal = 12.dp)
                     .size(20.dp),
                 strokeWidth = 2.dp,
             )
-        } else {
-            IconButton(onClick = onDownload) {
+
+            EpisodeDownloadState.Completed -> Icon(
+                imageVector = Icons.Filled.DownloadDone,
+                contentDescription = "Downloaded",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .size(24.dp),
+            )
+
+            EpisodeDownloadState.Failed -> IconButton(onClick = onDownload) {
+                Icon(
+                    imageVector = Icons.Filled.ErrorOutline,
+                    contentDescription = "Download failed — tap to retry",
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            EpisodeDownloadState.None -> IconButton(onClick = onDownload) {
                 Icon(
                     imageVector = Icons.Filled.Download,
                     contentDescription = "Download episode ${episode.number}",
