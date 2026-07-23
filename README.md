@@ -81,6 +81,11 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.0.10
+- Search history: the last 10 searches are saved locally
+- Tap the search field while empty to see recent searches
+- Tap an entry to re-run it, × to remove one, or "Clear all" to wipe the list
+
 ### v1.0.9
 - New **Library** tab: bookmark any series and find it later
 - Bookmark toggle button (filled / outlined) in the detail screen top bar
