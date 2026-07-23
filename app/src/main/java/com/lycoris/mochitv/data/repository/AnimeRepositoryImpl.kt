@@ -137,6 +137,6 @@ private val SourceSite.idPrefix: String
 /** Root URL of the source site (trailing slash included). */
 private val SourceSite.baseUrl: String
     get() = when (this) {
-        SourceSite.ANIME_SAMA -> "https://anime-sama.to/"
+        SourceSite.ANIME_SAMA -> "https://anime-sama.to/catalogue/"
         SourceSite.VOIR_ANIME -> "https://voir-anime.to/"
     }
