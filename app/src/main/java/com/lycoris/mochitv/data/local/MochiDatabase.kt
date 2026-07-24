@@ -8,10 +8,12 @@ import com.lycoris.mochitv.data.local.dao.AnimeDao
 import com.lycoris.mochitv.data.local.dao.BookmarkDao
 import com.lycoris.mochitv.data.local.dao.EpisodeDao
 import com.lycoris.mochitv.data.local.dao.SearchHistoryDao
+import com.lycoris.mochitv.data.local.dao.WatchProgressDao
 import com.lycoris.mochitv.data.local.entity.AnimeEntity
 import com.lycoris.mochitv.data.local.entity.BookmarkEntity
 import com.lycoris.mochitv.data.local.entity.EpisodeEntity
 import com.lycoris.mochitv.data.local.entity.SearchHistoryEntity
+import com.lycoris.mochitv.data.local.entity.WatchProgressEntity
 
 /**
  * Root Room database for MochiTV.
@@ -26,8 +28,8 @@ import com.lycoris.mochitv.data.local.entity.SearchHistoryEntity
  * implementations for each version bump.
  */
 @Database(
-    entities = [AnimeEntity::class, EpisodeEntity::class, BookmarkEntity::class, SearchHistoryEntity::class],
-    version = 4,
+    entities = [AnimeEntity::class, EpisodeEntity::class, BookmarkEntity::class, SearchHistoryEntity::class, WatchProgressEntity::class],
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -40,4 +42,6 @@ abstract class MochiDatabase : RoomDatabase() {
     abstract fun bookmarkDao(): BookmarkDao
 
     abstract fun searchHistoryDao(): SearchHistoryDao
+
+    abstract fun watchProgressDao(): WatchProgressDao
 }

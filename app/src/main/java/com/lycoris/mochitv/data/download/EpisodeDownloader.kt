@@ -92,4 +92,17 @@ class EpisodeDownloader @Inject constructor(
             /* foreground = */ false,
         )
     }
+
+    /**
+     * Tells Media3's [DownloadService] to remove the cached download for [episodeId].
+     * Safe to call even if the episode is not currently downloaded.
+     */
+    fun deleteDownload(episodeId: String) {
+        DownloadService.sendRemoveDownload(
+            context,
+            MochiDownloadService::class.java,
+            episodeId,
+            /* foreground = */ false,
+        )
+    }
 }

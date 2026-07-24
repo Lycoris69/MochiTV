@@ -10,6 +10,7 @@ import com.lycoris.mochitv.domain.usecase.BookmarkAnimeUseCase
 import com.lycoris.mochitv.domain.usecase.DownloadEpisodeUseCase
 import com.lycoris.mochitv.domain.usecase.GetAnimeDetailUseCase
 import com.lycoris.mochitv.domain.usecase.GetEpisodesUseCase
+import com.lycoris.mochitv.domain.usecase.GetWatchedEpisodeIdsUseCase
 import com.lycoris.mochitv.domain.usecase.IsBookmarkedUseCase
 import com.lycoris.mochitv.domain.usecase.UnbookmarkAnimeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,6 +36,7 @@ class DetailViewModel @Inject constructor(
     isBookmarkedUseCase: IsBookmarkedUseCase,
     private val downloadEpisodeUseCase: DownloadEpisodeUseCase,
     private val episodeDownloader: EpisodeDownloader,
+    getWatchedEpisodeIdsUseCase: GetWatchedEpisodeIdsUseCase,
 ) : ViewModel() {
 
     private val animeId: String = checkNotNull(savedStateHandle["animeId"]) {
@@ -46,6 +48,9 @@ class DetailViewModel @Inject constructor(
 
     val isBookmarked: StateFlow<Boolean> = isBookmarkedUseCase(animeId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val watchedEpisodeIds: StateFlow<Set<String>> = getWatchedEpisodeIdsUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /** Episodes whose stream URL is currently being resolved (before Media3 takes over). */
     private val _resolvingEpisodes = MutableStateFlow<Set<String>>(emptySet())

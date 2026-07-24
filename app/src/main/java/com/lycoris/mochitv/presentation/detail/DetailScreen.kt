@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -69,6 +70,7 @@ fun DetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isBookmarked by viewModel.isBookmarked.collectAsStateWithLifecycle()
     val episodeDownloadStates by viewModel.episodeDownloadStates.collectAsStateWithLifecycle()
+    val watchedEpisodeIds by viewModel.watchedEpisodeIds.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
@@ -107,6 +109,7 @@ fun DetailScreen(
                 onEpisodeClick = onEpisodeClick,
                 onDownload = viewModel::downloadEpisode,
                 episodeDownloadStates = episodeDownloadStates,
+                watchedEpisodeIds = watchedEpisodeIds,
                 snackbarHostState = snackbarHostState,
                 onBack = onBack,
                 modifier = modifier,
@@ -127,6 +130,7 @@ private fun DetailContent(
     onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
     onDownload: (Episode) -> Unit,
     episodeDownloadStates: Map<String, EpisodeDownloadState>,
+    watchedEpisodeIds: Set<String>,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -292,6 +296,7 @@ private fun DetailContent(
                         onDownload = { onDownload(episode) },
                         downloadState = episodeDownloadStates[episode.id]
                             ?: EpisodeDownloadState.None,
+                        isWatched = episode.id in watchedEpisodeIds,
                     )
                     HorizontalDivider()
                 }
@@ -351,6 +356,7 @@ private fun EpisodeRow(
     onDownload: () -> Unit,
     downloadState: EpisodeDownloadState,
     modifier: Modifier = Modifier,
+    isWatched: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -393,6 +399,25 @@ private fun EpisodeRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+
+            if (isWatched) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Text(
+                        text = "Seen",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         }
 
