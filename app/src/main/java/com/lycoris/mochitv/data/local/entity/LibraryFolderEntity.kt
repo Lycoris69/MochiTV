@@ -1,0 +1,11 @@
+package com.lycoris.mochitv.data.local.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "library_folders")
+data class LibraryFolderEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val createdAt: Long,
+)

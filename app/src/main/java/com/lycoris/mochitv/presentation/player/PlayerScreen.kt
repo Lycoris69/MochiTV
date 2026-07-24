@@ -8,12 +8,19 @@ import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -52,11 +60,13 @@ import kotlinx.coroutines.delay
  * composable lifecycle via [LaunchedEffect] (prepare/play) and
  * [DisposableEffect] (release).
  *
- * @param onBack Called when the user taps the system back button or a back action.
+ * @param onBack Called when the user taps the back button.
+ * @param onHome Called when the user taps the home button to navigate back to the home screen.
  */
 @Composable
 fun PlayerScreen(
     onBack: () -> Unit,
+    onHome: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
@@ -95,6 +105,8 @@ fun PlayerScreen(
                     nextEpisode = nextEpisode,
                     onNextEpisode = viewModel::goToNextEpisode,
                     onWatched = viewModel::recordWatchProgress,
+                    onBack = onBack,
+                    onHome = onHome,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -128,6 +140,8 @@ private fun VideoPlayer(
     nextEpisode: Episode?,
     onNextEpisode: () -> Unit,
     onWatched: () -> Unit,
+    onBack: () -> Unit,
+    onHome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -147,6 +161,16 @@ private fun VideoPlayer(
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
             .build()
+    }
+
+    // Wrap ExoPlayer so the native "skip to next" button reflects our episode list,
+    // not ExoPlayer's internal playlist (which always has a single item).
+    val wrappedPlayer = remember(nextEpisode) {
+        NextEpisodePlayer(
+            player = exoPlayer,
+            hasNext = { nextEpisode != null },
+            onNext = onNextEpisode,
+        )
     }
 
     LaunchedEffect(streamUrl) {
@@ -190,7 +214,8 @@ private fun VideoPlayer(
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    player = exoPlayer
+                    player = wrappedPlayer
+                    setShowNextButton(true)
                     controllerAutoShow = true
                     setControllerVisibilityListener(
                         PlayerView.ControllerVisibilityListener { visibility ->
@@ -205,22 +230,67 @@ private fun VideoPlayer(
                 }
             },
             update = { playerView ->
-                playerView.player = exoPlayer
+                playerView.player = wrappedPlayer
             },
             modifier = Modifier.fillMaxSize(),
         )
 
-        if (controlsVisible.value && nextEpisode != null) {
-            Button(
-                onClick = onNextEpisode,
+        if (controlsVisible.value) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 72.dp),
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent),
+                        )
+                    )
+                    .align(Alignment.TopStart)
+                    .padding(top = 4.dp),
             ) {
-                Text("Next →")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = onHome) {
+                        Icon(
+                            imageVector = Icons.Filled.Home,
+                            contentDescription = "Home",
+                            tint = Color.White,
+                        )
+                    }
+                }
             }
         }
     }
+}
+
+// ---- NextEpisodePlayer wrapper --------------------------------------------
+
+/**
+ * A [ForwardingPlayer] that makes the native "skip to next" control reflect
+ * whether our episode list has a next item, and routes the seek action to
+ * [onNext] instead of ExoPlayer's single-item playlist.
+ */
+private class NextEpisodePlayer(
+    player: androidx.media3.common.Player,
+    private val hasNext: () -> Boolean,
+    private val onNext: () -> Unit,
+) : androidx.media3.common.ForwardingPlayer(player) {
+    override fun hasNextMediaItem(): Boolean = hasNext() || super.hasNextMediaItem()
+    override fun isCommandAvailable(command: Int): Boolean =
+        if (command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
+            command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT) hasNext()
+        else super.isCommandAvailable(command)
+    override fun seekToNext() { if (hasNext()) onNext() else super.seekToNext() }
+    override fun seekToNextMediaItem() { if (hasNext()) onNext() else super.seekToNextMediaItem() }
 }
 
 // ---- Private helpers -------------------------------------------------------

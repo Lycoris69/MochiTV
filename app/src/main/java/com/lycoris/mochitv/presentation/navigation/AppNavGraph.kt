@@ -134,7 +134,15 @@ fun AppNavGraph(
                     navArgument("animeId")   { type = NavType.StringType },
                 ),
             ) {
-                PlayerScreen(onBack = { navController.popBackStack() })
+                PlayerScreen(
+                    onBack = { navController.popBackStack() },
+                    onHome = {
+                        navController.popBackStack(
+                            route = Screen.Home.route,
+                            inclusive = false,
+                        )
+                    },
+                )
             }
         }
         // suppress unused innerPadding — Scaffold handles insets via NavigationBar

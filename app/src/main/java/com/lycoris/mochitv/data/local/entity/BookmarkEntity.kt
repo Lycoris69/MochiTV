@@ -7,4 +7,6 @@ import androidx.room.PrimaryKey
 data class BookmarkEntity(
     @PrimaryKey val animeId: String,
     val addedAt: Long = System.currentTimeMillis(),
+    /** null = uncategorized (not in any folder) */
+    val folderId: String? = null,
 )

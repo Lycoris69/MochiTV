@@ -8,6 +8,7 @@ import com.lycoris.mochitv.data.local.dao.AnimeDao
 import com.lycoris.mochitv.data.local.dao.BookmarkDao
 import com.lycoris.mochitv.data.local.dao.EpisodeDao
 import com.lycoris.mochitv.data.local.dao.SearchHistoryDao
+import com.lycoris.mochitv.data.local.dao.LibraryFolderDao
 import com.lycoris.mochitv.data.local.dao.WatchProgressDao
 import com.lycoris.mochitv.data.network.UserAgents
 import com.lycoris.mochitv.data.repository.AnimeRepositoryImpl
@@ -144,6 +145,10 @@ abstract class AppModule {
         @Provides
         @Singleton
         fun provideWatchProgressDao(db: MochiDatabase): WatchProgressDao = db.watchProgressDao()
+
+        @Provides
+        @Singleton
+        fun provideLibraryFolderDao(db: MochiDatabase): LibraryFolderDao = db.libraryFolderDao()
 
         /**
          * Coil [ImageLoader] with a Referer interceptor.

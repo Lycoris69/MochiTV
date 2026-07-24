@@ -21,4 +21,16 @@ interface BookmarkDao {
 
     @Query("SELECT animeId FROM bookmarks ORDER BY addedAt DESC")
     fun getAllIds(): Flow<List<String>>
+
+    @Query("SELECT animeId FROM bookmarks WHERE folderId IS NULL ORDER BY addedAt DESC")
+    fun getUncategorizedIds(): Flow<List<String>>
+
+    @Query("SELECT animeId FROM bookmarks WHERE folderId = :folderId ORDER BY addedAt DESC")
+    fun getIdsByFolder(folderId: String): Flow<List<String>>
+
+    @Query("UPDATE bookmarks SET folderId = :folderId WHERE animeId IN (:animeIds)")
+    suspend fun moveTo(animeIds: List<String>, folderId: String?)
+
+    @Query("UPDATE bookmarks SET folderId = NULL WHERE folderId = :folderId")
+    suspend fun clearFolder(folderId: String)
 }
