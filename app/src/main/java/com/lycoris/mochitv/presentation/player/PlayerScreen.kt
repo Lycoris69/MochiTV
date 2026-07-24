@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -229,7 +230,7 @@ private fun VideoPlayer(
                 PlayerView(ctx).apply {
                     playerViewRef.value = this
                     player = wrappedPlayer
-                    setShowNextButton(true)
+                    setShowNextButton(false)
                     controllerAutoShow = true
                     setControllerVisibilityListener(
                         PlayerView.ControllerVisibilityListener { visibility ->
@@ -273,6 +274,15 @@ private fun VideoPlayer(
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
+                    if (nextEpisode != null) {
+                        IconButton(onClick = onNextEpisode) {
+                            Icon(
+                                imageVector = Icons.Filled.SkipNext,
+                                contentDescription = "Next episode",
+                                tint = Color.White,
+                            )
+                        }
+                    }
                     IconButton(onClick = onHome) {
                         Icon(
                             imageVector = Icons.Filled.Home,
