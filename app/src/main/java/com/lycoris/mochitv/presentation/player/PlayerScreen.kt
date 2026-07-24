@@ -163,14 +163,27 @@ private fun VideoPlayer(
             .build()
     }
 
-    // Wrap ExoPlayer so the native "skip to next" button reflects our episode list,
-    // not ExoPlayer's internal playlist (which always has a single item).
-    val wrappedPlayer = remember(nextEpisode) {
+    // hasNextState is updated every recomposition so the wrapper always reflects the latest value.
+    val hasNextState = remember { mutableStateOf(nextEpisode != null) }
+    hasNextState.value = nextEpisode != null
+
+    // Single wrapper for the lifetime of the composable — never recreated.
+    val wrappedPlayer = remember {
         NextEpisodePlayer(
             player = exoPlayer,
-            hasNext = { nextEpisode != null },
+            hasNext = { hasNextState.value },
             onNext = onNextEpisode,
         )
+    }
+
+    // PlayerControlView only re-reads available commands when setPlayer() is called or on player
+    // events. When nextEpisode availability changes while the player is already playing (no event
+    // fires), we briefly cycle the player reference to force a full updateNavigation() pass.
+    val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
+    LaunchedEffect(nextEpisode != null) {
+        val pv = playerViewRef.value ?: return@LaunchedEffect
+        pv.player = null
+        pv.player = wrappedPlayer
     }
 
     LaunchedEffect(streamUrl) {
@@ -214,6 +227,7 @@ private fun VideoPlayer(
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
+                    playerViewRef.value = this
                     player = wrappedPlayer
                     setShowNextButton(true)
                     controllerAutoShow = true
@@ -230,7 +244,7 @@ private fun VideoPlayer(
                 }
             },
             update = { playerView ->
-                playerView.player = wrappedPlayer
+                playerViewRef.value = playerView
             },
             modifier = Modifier.fillMaxSize(),
         )
@@ -284,11 +298,26 @@ private class NextEpisodePlayer(
     private val hasNext: () -> Boolean,
     private val onNext: () -> Unit,
 ) : androidx.media3.common.ForwardingPlayer(player) {
+
+    override fun getAvailableCommands(): androidx.media3.common.Player.Commands {
+        val base = super.getAvailableCommands()
+        return if (hasNext()) {
+            base.buildUpon()
+                .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT)
+                .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .build()
+        } else {
+            base
+        }
+    }
+
     override fun hasNextMediaItem(): Boolean = hasNext() || super.hasNextMediaItem()
+
     override fun isCommandAvailable(command: Int): Boolean =
         if (command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
             command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT) hasNext()
         else super.isCommandAvailable(command)
+
     override fun seekToNext() { if (hasNext()) onNext() else super.seekToNext() }
     override fun seekToNextMediaItem() { if (hasNext()) onNext() else super.seekToNextMediaItem() }
 }
