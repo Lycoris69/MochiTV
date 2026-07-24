@@ -81,6 +81,16 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.3.1
+- Delete dialog now lists every downloaded episode for the selected series, all checked by default — uncheck individual episodes before confirming to do a partial delete
+- Multiple selected series are grouped by title inside the dialog
+
+### v1.3.0
+- **Immersive player**: status bar and navigation bar hide when controls are hidden, restoring on exit
+- **Next episode button**: a "Next →" button appears in the player while controls are visible; taps swap the stream in-place without touching the back stack
+- **Seen indicator**: episodes watched for ≥ 20 minutes or ≥ 4/5 of their runtime are marked "Seen" in the episode list (tracked locally in Room, persists across restarts)
+- **Delete downloads**: long-press a series card in the Downloads tab to enter selection mode; trash icon opens a per-episode delete dialog
+
 ### v1.2.2
 - Fixed uneven card heights in the Library and Downloads grids (same fix applied earlier to the home screen)
 

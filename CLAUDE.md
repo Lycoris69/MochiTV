@@ -71,6 +71,12 @@ IDs are source-prefixed (`animesama_naruto`, `voir_naruto`) so results coexist w
 
 Video playback uses **ExoPlayer** (Media3). Stream URLs are extracted by the scraper/extractor chain and passed to `PlayerViewModel`.
 
+**Immersive mode:** `PlayerScreen` uses `WindowInsetsControllerCompat` to hide/show the status and navigation bars in sync with `PlayerView`'s controller visibility. `WindowCompat.setDecorFitsSystemWindows(false)` is set on entry; bars are restored on dispose.
+
+**Next episode:** `PlayerViewModel` keeps a mutable `currentEpisodeId` (starts from the nav-arg but advances on `goToNextEpisode()`). After loading the episode list it sets `_nextEpisode` to the following entry. `PlayerScreen` overlays a "Next →" button when controls are visible and a next episode exists — tapping reloads the stream in-place.
+
+**Watch progress:** `PlayerScreen` polls `exoPlayer.currentPosition` every 10 s inside a `LaunchedEffect`. Once position ≥ 20 min or ≥ 4/5 of duration, it calls `viewModel.recordWatchProgress()` once, which invokes `RecordWatchProgressUseCase` to upsert a row into the `watch_progress` Room table.
+
 ### Bookmarks / Library
 
 `BookmarkEntity` stores `animeId` + timestamp in Room. `BookmarkRepositoryImpl` joins with `AnimeDao` to return full `Anime` objects. The `LibraryScreen` shows bookmarked series in a 3-column grid. The bookmark toggle lives in the `DetailScreen` TopAppBar.
@@ -103,7 +109,7 @@ Offline episode downloads are handled by **Media3 `DownloadService`** (supports 
 |---|---|
 | `data/download/MochiDownloadService.kt` | Extends Media3 `DownloadService`; shows a foreground notification during downloads |
 | `data/download/DownloadManagerHolder.kt` | Process-scoped singleton (`object`) providing `DownloadManager` + `SimpleCache`; double-checked locking |
-| `data/download/EpisodeDownloader.kt` | `@Singleton` injected into ViewModels; exposes `enqueue()`, `observeStates(): Flow<Map<String,Int>>`, and `getDownloadedUri(id): String?` |
+| `data/download/EpisodeDownloader.kt` | `@Singleton` injected into ViewModels; exposes `enqueue()`, `observeStates(): Flow<Map<String,Int>>`, `getDownloadedUri(id): String?`, and `deleteDownload(id)` (calls `DownloadService.sendRemoveDownload`) |
 | `domain/usecase/DownloadEpisodeUseCase.kt` | Resolves stream URL then calls `EpisodeDownloader.enqueue()`; uses `mapCatching` (not `map`) |
 | `presentation/detail/EpisodeDownloadState.kt` | Sealed interface: `None / Resolving / Queued / Downloading / Completed / Failed` |
 
@@ -111,16 +117,32 @@ Downloaded content lives in `<externalFilesDir>/media3_downloads/`. `PlayerScree
 
 `DetailViewModel` combines `_resolvingEpisodes: MutableStateFlow<Set<String>>` with `episodeDownloader.observeStates()` via `combine()` to produce `episodeDownloadStates: StateFlow<Map<String, EpisodeDownloadState>>`.
 
+**Deleting downloads (Downloads tab):** `DownloadsViewModel` exposes a `deleteDialogState: StateFlow<DeleteDialogState?>`. Tapping the trash icon calls `openDeleteDialog()`, which queries `EpisodeDao.getAllByAnimeId()` for each selected series and filters to episodes where `getDownloadedUri() != null`. All episodes are checked by default (`DeleteDialogState.checkedIds`). `confirmDelete()` fires `EpisodeDownloader.deleteDownload()` for each checked id. `DownloadDeleteState.kt` holds the `EpisodeItem` and `DeleteDialogState` data classes.
+
 Required manifest entries: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `MochiDownloadService` with `foregroundServiceType="dataSync"`.
+
+### Watch Progress / Seen Indicator
+
+`WatchProgressEntity` (`tableName = "watch_progress"`) has `episodeId: String` (PK) and `watchedAtMs: Long`. The table is upserted — replaying an episode just updates the timestamp.
+
+| File | Role |
+|---|---|
+| `data/local/entity/WatchProgressEntity.kt` | Room entity |
+| `data/local/dao/WatchProgressDao.kt` | `@Upsert markWatched()` + `observeWatchedIds(): Flow<List<String>>` |
+| `domain/usecase/RecordWatchProgressUseCase.kt` | Called from `PlayerViewModel.recordWatchProgress()` |
+| `domain/usecase/GetWatchedEpisodeIdsUseCase.kt` | Maps DAO Flow to `Flow<Set<String>>`; consumed by `DetailViewModel` |
+
+`DetailViewModel` exposes `watchedEpisodeIds: StateFlow<Set<String>>`. `DetailScreen` passes `isWatched = episode.id in watchedEpisodeIds` to each `EpisodeRow`, which renders a 12dp `CheckCircle` icon + "Seen" label when true.
 
 ### Room Database
 
-- `MochiDatabase` version **4** (`fallbackToDestructiveMigration()` is set — no migration scripts)
+- `MochiDatabase` version **5** (`fallbackToDestructiveMigration()` is set — no migration scripts)
   - v1 → v2: added `bookmarks` table
   - v2 → v3: added `search_history` table
   - v3 → v4: added `lastReleaseDate` to `anime`, `releaseDate` to `episode`
-- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`, `SearchHistoryEntity`
-- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`, `SearchHistoryDao`
+  - v4 → v5: added `watch_progress` table
+- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`, `SearchHistoryEntity`, `WatchProgressEntity`
+- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`, `SearchHistoryDao`, `WatchProgressDao`
 
 ## Scraping Notes
 
@@ -133,4 +155,4 @@ Required manifest entries: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`,
 
 ## Navigation
 
-Bottom nav bar (Home / Library) is rendered by `AppNavGraph` only when the current destination is a root tab (`home` or `library`). It hides automatically on Detail and Player screens.
+Bottom nav bar (Home / Library / Downloads) is rendered by `AppNavGraph` only when the current destination is a root tab (`home`, `library`, or `downloads`). It hides automatically on Detail and Player screens.
