@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -233,6 +233,12 @@ private fun VideoPlayer(
                     player = wrappedPlayer
                     setShowNextButton(false)
                     controllerAutoShow = true
+                    // Swap the native previous-track button icon for a circular replay arrow.
+                    post {
+                        findViewById<android.widget.ImageButton>(
+                            androidx.media3.ui.R.id.exo_prev
+                        )?.setImageResource(com.lycoris.mochitv.R.drawable.ic_replay)
+                    }
                     setControllerVisibilityListener(
                         PlayerView.ControllerVisibilityListener { visibility ->
                             controlsVisible.value = visibility == View.VISIBLE
@@ -271,7 +277,7 @@ private fun VideoPlayer(
                 ) {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.Filled.Replay,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White,
                         )
