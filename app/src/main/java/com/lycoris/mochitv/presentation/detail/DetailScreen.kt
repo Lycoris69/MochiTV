@@ -155,6 +155,7 @@ private fun DetailContent(
                         )
                     }
                 },
+                expandedHeight = 48.dp,
                 actions = {
                     IconButton(onClick = onToggleBookmark) {
                         Icon(

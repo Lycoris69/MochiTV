@@ -45,6 +45,7 @@ fun MochiTVTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = MochiTypography,
         content = content,
     )
 }

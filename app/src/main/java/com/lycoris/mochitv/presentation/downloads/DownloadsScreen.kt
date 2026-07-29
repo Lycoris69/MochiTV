@@ -84,6 +84,7 @@ fun DownloadsScreen(
                         }
                     }
                 },
+                expandedHeight = 48.dp,
             )
         },
         contentWindowInsets = WindowInsets(0),

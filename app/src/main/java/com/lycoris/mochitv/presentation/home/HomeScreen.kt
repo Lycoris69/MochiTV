@@ -71,7 +71,10 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("MochiTV") })
+            TopAppBar(
+                title = { Text("MochiTV") },
+                expandedHeight = 48.dp,
+            )
         },
         contentWindowInsets = WindowInsets(0),
         modifier = modifier,
