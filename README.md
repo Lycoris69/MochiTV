@@ -81,6 +81,26 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.5.0
+- Top bar height reduced to 30dp on all screens (Home, Library, Downloads, Detail)
+
+### v1.4.9
+- Nunito font applied to all top bar titles
+- Compact top bars: height reduced to 40dp
+
+### v1.4.8
+- New MochiTV icon: mochi mascot with headphones on a purple gradient
+- Fixed bottom navigation bar clipping the last grid row — Home, Library, and Downloads grids now scroll cleanly past the nav bar (root `Scaffold` now forwards its `innerPadding` to each tab screen; inner Scaffolds set `contentWindowInsets = WindowInsets(0)` to avoid double-counting system insets)
+
+### v1.4.1 – v1.4.4
+- Player top bar: Back (←), Skip Next (⏭ — when a next episode exists), and Home (⌂) buttons overlay the top of the player while controls are visible; gradient fade from black keeps them readable over any video
+- Native previous-track button replaced with a circular replay arrow
+- Player locks to landscape on entry and restores the original orientation on exit
+
+### v1.4.0
+- **Library folders**: tap the new-folder icon in the Library top bar to create a named folder; long-press series cards to enter selection mode, then tap the folder icon to move them — the folder chip row at the top of the Library lets you browse each folder
+- Player navigation bar added (see v1.4.1–1.4.4 for the refined UI)
+
 ### v1.3.1
 - Delete dialog now lists every downloaded episode for the selected series, all checked by default — uncheck individual episodes before confirming to do a partial delete
 - Multiple selected series are grouped by title inside the dialog

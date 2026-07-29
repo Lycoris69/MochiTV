@@ -73,13 +73,17 @@ Video playback uses **ExoPlayer** (Media3). Stream URLs are extracted by the scr
 
 **Immersive mode:** `PlayerScreen` uses `WindowInsetsControllerCompat` to hide/show the status and navigation bars in sync with `PlayerView`'s controller visibility. `WindowCompat.setDecorFitsSystemWindows(false)` is set on entry; bars are restored on dispose.
 
-**Next episode:** `PlayerViewModel` keeps a mutable `currentEpisodeId` (starts from the nav-arg but advances on `goToNextEpisode()`). After loading the episode list it sets `_nextEpisode` to the following entry. `PlayerScreen` overlays a "Next →" button when controls are visible and a next episode exists — tapping reloads the stream in-place.
+**Next episode:** `PlayerViewModel` keeps a mutable `currentEpisodeId` (starts from the nav-arg but advances on `goToNextEpisode()`). After loading the episode list it sets `_nextEpisode` to the following entry.
+
+**Player top bar:** When controls are visible, `PlayerScreen` overlays a custom top bar (gradient fade from black, `statusBarsPadding()`) containing three icon buttons: Back (ArrowBack → `onBack`), SkipNext (only when `nextEpisode != null` → `goToNextEpisode()`), and Home (navigates to the home root via `onHome`). The SkipNext button cycles the native `PlayerView.player` reference to force `PlayerControlView.updateNavigation()` when next-episode availability changes mid-playback. The native previous-track button icon is replaced with a circular replay arrow (`ic_replay` drawable) via `post { findViewById<ImageButton>(exo_prev)?.setImageResource(...) }`.
 
 **Watch progress:** `PlayerScreen` polls `exoPlayer.currentPosition` every 10 s inside a `LaunchedEffect`. Once position ≥ 20 min or ≥ 4/5 of duration, it calls `viewModel.recordWatchProgress()` once, which invokes `RecordWatchProgressUseCase` to upsert a row into the `watch_progress` Room table.
 
 ### Bookmarks / Library
 
-`BookmarkEntity` stores `animeId` + timestamp in Room. `BookmarkRepositoryImpl` joins with `AnimeDao` to return full `Anime` objects. The `LibraryScreen` shows bookmarked series in a 3-column grid. The bookmark toggle lives in the `DetailScreen` TopAppBar.
+`BookmarkEntity` stores `animeId` + optional `folderId` + timestamp in Room. `BookmarkRepositoryImpl` joins with `AnimeDao` to return full `Anime` objects. The `LibraryScreen` shows bookmarked series in a 3-column grid. The bookmark toggle lives in the `DetailScreen` TopAppBar.
+
+**Library Folders:** `LibraryFolderEntity` (`tableName = "library_folders"`) stores `id` (UUID) and `name`. `LibraryFolderDao` exposes `getAllWithCount(): Flow<List<FolderWithCount>>` (each row includes `seriesCount`) and `getName(id): String?`. At the Library root, a horizontal `LazyRow` of folder chips appears above the grid; tapping a chip navigates into that folder (filters the grid). Long-press enters selection mode; the folder icon in the top bar opens `MoveFolderDialog`. `LibraryViewModel.currentFolderId: StateFlow<String?>` drives navigation state — `null` = root, non-null = inside a folder.
 
 **Offline note:** To reach a detail page offline you must have bookmarked it (Library) or have it in the Room anime cache from a prior visit. The episode list falls back to `EpisodeDao.getAllByAnimeId()` via `recoverCatching` in `AnimeRepositoryImpl.getEpisodes()` when the network is unavailable.
 
@@ -100,6 +104,14 @@ Video playback uses **ExoPlayer** (Media3). Stream URLs are extracted by the scr
 | JSON (TypeConverters) | Gson | — |
 
 Min SDK: 26 · Target SDK: 35 · AGP: 8.7.3 · Kotlin: 2.1.0
+
+### Theme / Typography
+
+`presentation/theme/Typography.kt` defines `NunitoFamily` — a public `FontFamily` backed by `res/font/nunito.ttf` (a variable font; all four `Font()` entries for Normal/Medium/SemiBold/Bold point to the same file and the wght axis handles them at render time).
+
+`NunitoFamily` is applied via `fontFamily = com.lycoris.mochitv.presentation.theme.NunitoFamily` on the `Text` inside each screen's `TopAppBar` title block (Home, Library, Downloads, Detail). It is **not** wired into `MaterialTheme.typography` — only top bar title text uses it.
+
+All `TopAppBar` composables use `expandedHeight = 30.dp` to produce a compact 30dp bar.
 
 ### Downloads
 
@@ -136,13 +148,14 @@ Required manifest entries: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`,
 
 ### Room Database
 
-- `MochiDatabase` version **5** (`fallbackToDestructiveMigration()` is set — no migration scripts)
+- `MochiDatabase` version **6** (`fallbackToDestructiveMigration()` is set — no migration scripts)
   - v1 → v2: added `bookmarks` table
   - v2 → v3: added `search_history` table
   - v3 → v4: added `lastReleaseDate` to `anime`, `releaseDate` to `episode`
   - v4 → v5: added `watch_progress` table
-- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`, `SearchHistoryEntity`, `WatchProgressEntity`
-- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`, `SearchHistoryDao`, `WatchProgressDao`
+  - v5 → v6: added `library_folders` table; added `folderId` column to `bookmarks`
+- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`, `SearchHistoryEntity`, `WatchProgressEntity`, `LibraryFolderEntity`
+- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`, `SearchHistoryDao`, `WatchProgressDao`, `LibraryFolderDao`
 
 ## Scraping Notes
 
