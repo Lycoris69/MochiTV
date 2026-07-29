@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -96,6 +97,7 @@ fun AppNavGraph(
                     onAnimeClick = { animeId ->
                         navController.navigate(Screen.Detail.createRoute(animeId))
                     },
+                    modifier = Modifier.padding(innerPadding),
                 )
             }
 
@@ -104,6 +106,7 @@ fun AppNavGraph(
                     onAnimeClick = { animeId ->
                         navController.navigate(Screen.Detail.createRoute(animeId))
                     },
+                    modifier = Modifier.padding(innerPadding),
                 )
             }
 
@@ -112,6 +115,7 @@ fun AppNavGraph(
                     onAnimeClick = { animeId ->
                         navController.navigate(Screen.Detail.createRoute(animeId))
                     },
+                    modifier = Modifier.padding(innerPadding),
                 )
             }
 

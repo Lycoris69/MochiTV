@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -87,6 +86,7 @@ fun DownloadsScreen(
                 },
             )
         },
+        contentWindowInsets = WindowInsets(0),
         modifier = modifier,
     ) { innerPadding ->
         if (anime.isEmpty()) {
@@ -104,18 +104,14 @@ fun DownloadsScreen(
                 )
             }
         } else {
-            val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding() + 8.dp,
-                    bottom = innerPadding.calculateBottomPadding() + navBarBottom + 8.dp,
-                    start = 8.dp,
-                    end = 8.dp,
-                ),
+                contentPadding = PaddingValues(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
             ) {
                 items(anime, key = { it.id }) { item ->
                     val isSelected = item.id in selectedIds

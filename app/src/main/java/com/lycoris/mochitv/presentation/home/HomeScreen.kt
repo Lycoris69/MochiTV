@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,6 +73,7 @@ fun HomeScreen(
         topBar = {
             TopAppBar(title = { Text("MochiTV") })
         },
+        contentWindowInsets = WindowInsets(0),
         modifier = modifier,
     ) { innerPadding ->
         Column(
@@ -263,16 +263,10 @@ private fun LatestReleasesContent(
                     if (shouldLoadMore.value) onLoadMore()
                 }
 
-                val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 150.dp),
                     state = gridState,
-                    contentPadding = PaddingValues(
-                        top = 16.dp,
-                        bottom = navBarBottom + 16.dp,
-                        start = 16.dp,
-                        end = 16.dp,
-                    ),
+                    contentPadding = PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
@@ -341,15 +335,9 @@ private fun AnimeGrid(
         return
     }
 
-    val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 150.dp),
-        contentPadding = PaddingValues(
-            top = 16.dp,
-            bottom = navBarBottom + 16.dp,
-            start = 16.dp,
-            end = 16.dp,
-        ),
+        contentPadding = PaddingValues(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize(),
