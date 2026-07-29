@@ -72,8 +72,13 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("MochiTV") },
-                expandedHeight = 48.dp,
+                title = {
+                    Text(
+                        "MochiTV",
+                        fontFamily = com.lycoris.mochitv.presentation.theme.NunitoFamily,
+                    )
+                },
+                expandedHeight = 40.dp,
             )
         },
         contentWindowInsets = WindowInsets(0),

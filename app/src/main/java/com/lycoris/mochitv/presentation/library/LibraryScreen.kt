@@ -100,10 +100,11 @@ fun LibraryScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    val nf = com.lycoris.mochitv.presentation.theme.NunitoFamily
                     when {
-                        isSelecting -> Text("${selectedIds.size} selected")
-                        currentFolderId != null -> Text(currentFolderName ?: "Folder")
-                        else -> Text("Library")
+                        isSelecting -> Text("${selectedIds.size} selected", fontFamily = nf)
+                        currentFolderId != null -> Text(currentFolderName ?: "Folder", fontFamily = nf)
+                        else -> Text("Library", fontFamily = nf)
                     }
                 },
                 navigationIcon = {
@@ -144,7 +145,7 @@ fun LibraryScreen(
                         }
                     }
                 },
-                expandedHeight = 48.dp,
+                expandedHeight = 40.dp,
             )
         },
         contentWindowInsets = WindowInsets(0),

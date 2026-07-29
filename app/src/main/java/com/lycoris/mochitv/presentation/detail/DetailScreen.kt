@@ -143,6 +143,7 @@ private fun DetailContent(
                 title = {
                     Text(
                         text = anime.title,
+                        fontFamily = com.lycoris.mochitv.presentation.theme.NunitoFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -155,7 +156,7 @@ private fun DetailContent(
                         )
                     }
                 },
-                expandedHeight = 48.dp,
+                expandedHeight = 40.dp,
                 actions = {
                     IconButton(onClick = onToggleBookmark) {
                         Icon(

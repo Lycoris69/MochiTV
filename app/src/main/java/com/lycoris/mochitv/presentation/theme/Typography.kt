@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.sp
 import com.lycoris.mochitv.R
 
 // Nunito variable font — single TTF covers all weights via the wght axis (API 26+).
-private val NunitoFamily = FontFamily(
+val NunitoFamily = FontFamily(
     Font(R.font.nunito, FontWeight.Normal),
     Font(R.font.nunito, FontWeight.Medium),
     Font(R.font.nunito, FontWeight.SemiBold),

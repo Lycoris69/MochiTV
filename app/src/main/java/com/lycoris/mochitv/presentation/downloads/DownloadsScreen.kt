@@ -67,8 +67,9 @@ fun DownloadsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    if (isSelecting) Text("${selectedIds.size} selected")
-                    else Text("Downloads")
+                    val nf = com.lycoris.mochitv.presentation.theme.NunitoFamily
+                    if (isSelecting) Text("${selectedIds.size} selected", fontFamily = nf)
+                    else Text("Downloads", fontFamily = nf)
                 },
                 navigationIcon = {
                     if (isSelecting) {
@@ -84,7 +85,7 @@ fun DownloadsScreen(
                         }
                     }
                 },
-                expandedHeight = 48.dp,
+                expandedHeight = 40.dp,
             )
         },
         contentWindowInsets = WindowInsets(0),
