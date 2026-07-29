@@ -78,7 +78,7 @@ fun HomeScreen(
                         fontFamily = com.lycoris.mochitv.presentation.theme.NunitoFamily,
                     )
                 },
-                expandedHeight = 40.dp,
+                expandedHeight = 30.dp,
             )
         },
         contentWindowInsets = WindowInsets(0),
