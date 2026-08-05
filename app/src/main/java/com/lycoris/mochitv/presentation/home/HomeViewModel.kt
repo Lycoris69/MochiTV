@@ -7,6 +7,7 @@ import com.lycoris.mochitv.domain.usecase.ClearSearchHistoryUseCase
 import com.lycoris.mochitv.domain.usecase.DeleteSearchQueryUseCase
 import com.lycoris.mochitv.domain.usecase.GetLatestReleasesUseCase
 import com.lycoris.mochitv.domain.usecase.GetSearchHistoryUseCase
+import com.lycoris.mochitv.domain.usecase.GetWatchHistoryUseCase
 import com.lycoris.mochitv.domain.usecase.SaveSearchQueryUseCase
 import com.lycoris.mochitv.domain.usecase.SearchAnimeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -68,6 +69,7 @@ class HomeViewModel @Inject constructor(
     private val deleteSearchQueryUseCase: DeleteSearchQueryUseCase,
     private val clearSearchHistoryUseCase: ClearSearchHistoryUseCase,
     getSearchHistoryUseCase: GetSearchHistoryUseCase,
+    getWatchHistoryUseCase: GetWatchHistoryUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
@@ -77,6 +79,10 @@ class HomeViewModel @Inject constructor(
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     val searchHistory: StateFlow<List<String>> = getSearchHistoryUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Most recently watched episodes, newest-first, limited to 10 items. */
+    val watchHistory: StateFlow<List<WatchHistoryItem>> = getWatchHistoryUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ---- Latest releases pagination state ----------------------------------

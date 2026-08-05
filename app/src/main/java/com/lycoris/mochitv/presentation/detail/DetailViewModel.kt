@@ -6,10 +6,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.exoplayer.offline.Download
 import com.lycoris.mochitv.data.download.EpisodeDownloader
 import com.lycoris.mochitv.domain.model.Episode
+import com.lycoris.mochitv.domain.model.PlaybackPosition
 import com.lycoris.mochitv.domain.usecase.BookmarkAnimeUseCase
 import com.lycoris.mochitv.domain.usecase.DownloadEpisodeUseCase
 import com.lycoris.mochitv.domain.usecase.GetAnimeDetailUseCase
 import com.lycoris.mochitv.domain.usecase.GetEpisodesUseCase
+import com.lycoris.mochitv.domain.usecase.GetPlaybackPositionsForAnimeUseCase
 import com.lycoris.mochitv.domain.usecase.GetWatchedEpisodeIdsUseCase
 import com.lycoris.mochitv.domain.usecase.IsBookmarkedUseCase
 import com.lycoris.mochitv.domain.usecase.UnbookmarkAnimeUseCase
@@ -37,6 +39,7 @@ class DetailViewModel @Inject constructor(
     private val downloadEpisodeUseCase: DownloadEpisodeUseCase,
     private val episodeDownloader: EpisodeDownloader,
     getWatchedEpisodeIdsUseCase: GetWatchedEpisodeIdsUseCase,
+    getPlaybackPositionsForAnimeUseCase: GetPlaybackPositionsForAnimeUseCase,
 ) : ViewModel() {
 
     private val animeId: String = checkNotNull(savedStateHandle["animeId"]) {
@@ -51,6 +54,16 @@ class DetailViewModel @Inject constructor(
 
     val watchedEpisodeIds: StateFlow<Set<String>> = getWatchedEpisodeIdsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /**
+     * Saved playback positions for episodes belonging to this anime, keyed by episode id.
+     *
+     * An episode is absent from the map if it has never been started or was completed
+     * (the row is deleted on finish).  Used to render per-episode resume-progress bars.
+     */
+    val playbackPositions: StateFlow<Map<String, PlaybackPosition>> =
+        getPlaybackPositionsForAnimeUseCase(animeId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** Episodes whose stream URL is currently being resolved (before Media3 takes over). */
     private val _resolvingEpisodes = MutableStateFlow<Set<String>>(emptySet())

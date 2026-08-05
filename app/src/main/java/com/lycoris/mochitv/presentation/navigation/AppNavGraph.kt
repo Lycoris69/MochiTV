@@ -97,6 +97,9 @@ fun AppNavGraph(
                     onAnimeClick = { animeId ->
                         navController.navigate(Screen.Detail.createRoute(animeId))
                     },
+                    onEpisodeClick = { episodeId, animeId ->
+                        navController.navigate(Screen.Player.createRoute(episodeId, animeId))
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
             }

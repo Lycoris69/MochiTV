@@ -16,12 +16,15 @@ sealed interface PlayerUiState {
     /**
      * The stream URL has been resolved and playback can begin.
      *
-     * @param streamUrl Direct media URL (HLS, DASH, or progressive MP4).
-     * @param episode   The episode being played (used for display metadata).
+     * @param streamUrl       Direct media URL (HLS, DASH, or progressive MP4).
+     * @param episode         The episode being played (used for display metadata).
+     * @param savedPositionMs Last saved playback position in ms, or 0 if none.
+     *                        When > 0 the player should seek here after [prepare].
      */
     data class Ready(
         val streamUrl: String,
         val episode: Episode,
+        val savedPositionMs: Long = 0L,
     ) : PlayerUiState
 
     /** Resolution failed; [message] is displayed with a retry button. */

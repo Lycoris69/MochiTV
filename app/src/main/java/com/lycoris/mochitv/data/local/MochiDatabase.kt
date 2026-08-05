@@ -8,12 +8,14 @@ import com.lycoris.mochitv.data.local.dao.AnimeDao
 import com.lycoris.mochitv.data.local.dao.BookmarkDao
 import com.lycoris.mochitv.data.local.dao.EpisodeDao
 import com.lycoris.mochitv.data.local.dao.LibraryFolderDao
+import com.lycoris.mochitv.data.local.dao.PlaybackPositionDao
 import com.lycoris.mochitv.data.local.dao.SearchHistoryDao
 import com.lycoris.mochitv.data.local.dao.WatchProgressDao
 import com.lycoris.mochitv.data.local.entity.AnimeEntity
 import com.lycoris.mochitv.data.local.entity.BookmarkEntity
 import com.lycoris.mochitv.data.local.entity.EpisodeEntity
 import com.lycoris.mochitv.data.local.entity.LibraryFolderEntity
+import com.lycoris.mochitv.data.local.entity.PlaybackPositionEntity
 import com.lycoris.mochitv.data.local.entity.SearchHistoryEntity
 import com.lycoris.mochitv.data.local.entity.WatchProgressEntity
 
@@ -30,8 +32,16 @@ import com.lycoris.mochitv.data.local.entity.WatchProgressEntity
  * implementations for each version bump.
  */
 @Database(
-    entities = [AnimeEntity::class, EpisodeEntity::class, BookmarkEntity::class, SearchHistoryEntity::class, WatchProgressEntity::class, LibraryFolderEntity::class],
-    version = 6,
+    entities = [
+        AnimeEntity::class,
+        EpisodeEntity::class,
+        BookmarkEntity::class,
+        SearchHistoryEntity::class,
+        WatchProgressEntity::class,
+        LibraryFolderEntity::class,
+        PlaybackPositionEntity::class,
+    ],
+    version = 7,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -48,4 +58,6 @@ abstract class MochiDatabase : RoomDatabase() {
     abstract fun watchProgressDao(): WatchProgressDao
 
     abstract fun libraryFolderDao(): LibraryFolderDao
+
+    abstract fun playbackPositionDao(): PlaybackPositionDao
 }

@@ -43,6 +43,9 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -104,9 +107,11 @@ fun PlayerScreen(
             is PlayerUiState.Ready -> {
                 VideoPlayer(
                     streamUrl = state.streamUrl,
+                    savedPositionMs = state.savedPositionMs,
                     nextEpisode = nextEpisode,
                     onNextEpisode = viewModel::goToNextEpisode,
                     onWatched = viewModel::recordWatchProgress,
+                    onSavePosition = viewModel::savePosition,
                     onBack = onBack,
                     onHome = onHome,
                     modifier = Modifier.fillMaxSize(),
@@ -139,14 +144,17 @@ fun PlayerScreen(
 @Composable
 private fun VideoPlayer(
     streamUrl: String,
+    savedPositionMs: Long,
     nextEpisode: Episode?,
     onNextEpisode: () -> Unit,
     onWatched: () -> Unit,
+    onSavePosition: (positionMs: Long, durationMs: Long) -> Unit,
     onBack: () -> Unit,
     onHome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val controlsVisible = remember { mutableStateOf(true) }
 
     val insetsController = remember {
@@ -188,12 +196,17 @@ private fun VideoPlayer(
         pv.player = wrappedPlayer
     }
 
+    // Prepare media and seek to the saved position if one exists.
     LaunchedEffect(streamUrl) {
         exoPlayer.setMediaItem(MediaItem.fromUri(streamUrl))
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
+        if (savedPositionMs > 0L) {
+            exoPlayer.seekTo(savedPositionMs)
+        }
     }
 
+    // Poll for "watched" threshold every 10 s.
     LaunchedEffect(exoPlayer) {
         while (true) {
             delay(10_000L)
@@ -207,6 +220,7 @@ private fun VideoPlayer(
         }
     }
 
+    // Immersive mode — disable system bar auto-fit for full-bleed video.
     DisposableEffect(Unit) {
         val window = context.findActivity()?.window
         if (window != null) {
@@ -219,8 +233,27 @@ private fun VideoPlayer(
         }
     }
 
+    // Lifecycle observer: pause ExoPlayer and save position when the app is
+    // backgrounded (ON_PAUSE). This covers the home-button and notification-
+    // shade use cases where onDispose does not fire immediately.
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                exoPlayer.pause()
+                onSavePosition(exoPlayer.currentPosition, exoPlayer.duration)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Save position then release the player when the composable leaves
+    // composition (back press, next-episode transition, or navigation away).
     DisposableEffect(exoPlayer) {
         onDispose {
+            onSavePosition(exoPlayer.currentPosition, exoPlayer.duration)
             exoPlayer.release()
         }
     }

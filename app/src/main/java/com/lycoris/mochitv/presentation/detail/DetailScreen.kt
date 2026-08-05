@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
@@ -57,6 +58,7 @@ import coil.compose.AsyncImage
 import com.lycoris.mochitv.domain.model.Anime
 import com.lycoris.mochitv.domain.model.AnimeStatus
 import com.lycoris.mochitv.domain.model.Episode
+import com.lycoris.mochitv.domain.model.PlaybackPosition
 import com.lycoris.mochitv.domain.model.SourceSite
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +73,7 @@ fun DetailScreen(
     val isBookmarked by viewModel.isBookmarked.collectAsStateWithLifecycle()
     val episodeDownloadStates by viewModel.episodeDownloadStates.collectAsStateWithLifecycle()
     val watchedEpisodeIds by viewModel.watchedEpisodeIds.collectAsStateWithLifecycle()
+    val playbackPositions by viewModel.playbackPositions.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
@@ -110,6 +113,7 @@ fun DetailScreen(
                 onDownload = viewModel::downloadEpisode,
                 episodeDownloadStates = episodeDownloadStates,
                 watchedEpisodeIds = watchedEpisodeIds,
+                playbackPositions = playbackPositions,
                 snackbarHostState = snackbarHostState,
                 onBack = onBack,
                 modifier = modifier,
@@ -131,6 +135,7 @@ private fun DetailContent(
     onDownload: (Episode) -> Unit,
     episodeDownloadStates: Map<String, EpisodeDownloadState>,
     watchedEpisodeIds: Set<String>,
+    playbackPositions: Map<String, PlaybackPosition>,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -299,6 +304,7 @@ private fun DetailContent(
                         downloadState = episodeDownloadStates[episode.id]
                             ?: EpisodeDownloadState.None,
                         isWatched = episode.id in watchedEpisodeIds,
+                        playbackPosition = playbackPositions[episode.id],
                     )
                     HorizontalDivider()
                 }
@@ -359,105 +365,121 @@ private fun EpisodeRow(
     downloadState: EpisodeDownloadState,
     modifier: Modifier = Modifier,
     isWatched: Boolean = false,
+    playbackPosition: PlaybackPosition? = null,
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(onClick = onClick),
     ) {
-        Text(
-            text = "Ep ${episode.number}",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.width(56.dp),
-        )
-
-        Column(modifier = Modifier.weight(1f)) {
-            episode.title?.let { title ->
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            } ?: Text(
-                text = "Episode ${episode.number}",
-                style = MaterialTheme.typography.bodyMedium,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Ep ${episode.number}",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.width(56.dp),
             )
 
-            episode.durationSeconds?.let { secs ->
-                Text(
-                    text = formatDuration(secs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            episode.releaseDate?.let { date ->
-                Text(
-                    text = date,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            if (isWatched) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(12.dp),
-                    )
+            Column(modifier = Modifier.weight(1f)) {
+                episode.title?.let { title ->
                     Text(
-                        text = "Seen",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } ?: Text(
+                    text = "Episode ${episode.number}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+
+                episode.durationSeconds?.let { secs ->
+                    Text(
+                        text = formatDuration(secs),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                episode.releaseDate?.let { date ->
+                    Text(
+                        text = date,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (isWatched) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = "Seen",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+
+            // Download status indicator
+            when (downloadState) {
+                EpisodeDownloadState.Resolving,
+                EpisodeDownloadState.Queued,
+                EpisodeDownloadState.Downloading -> CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .size(20.dp),
+                    strokeWidth = 2.dp,
+                )
+
+                EpisodeDownloadState.Completed -> Icon(
+                    imageVector = Icons.Filled.DownloadDone,
+                    contentDescription = "Downloaded",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .size(24.dp),
+                )
+
+                EpisodeDownloadState.Failed -> IconButton(onClick = onDownload) {
+                    Icon(
+                        imageVector = Icons.Filled.ErrorOutline,
+                        contentDescription = "Download failed — tap to retry",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+
+                EpisodeDownloadState.None -> IconButton(onClick = onDownload) {
+                    Icon(
+                        imageVector = Icons.Filled.Download,
+                        contentDescription = "Download episode ${episode.number}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
 
-        // Download status indicator
-        when (downloadState) {
-            EpisodeDownloadState.Resolving,
-            EpisodeDownloadState.Queued,
-            EpisodeDownloadState.Downloading -> CircularProgressIndicator(
+        // Thin progress bar shown when there is a saved resume position.
+        if (playbackPosition != null && playbackPosition.durationMs > 0L) {
+            LinearProgressIndicator(
+                progress = { playbackPosition.progress },
                 modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .size(20.dp),
-                strokeWidth = 2.dp,
+                    .fillMaxWidth()
+                    .height(2.dp),
             )
-
-            EpisodeDownloadState.Completed -> Icon(
-                imageVector = Icons.Filled.DownloadDone,
-                contentDescription = "Downloaded",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .size(24.dp),
-            )
-
-            EpisodeDownloadState.Failed -> IconButton(onClick = onDownload) {
-                Icon(
-                    imageVector = Icons.Filled.ErrorOutline,
-                    contentDescription = "Download failed — tap to retry",
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
-
-            EpisodeDownloadState.None -> IconButton(onClick = onDownload) {
-                Icon(
-                    imageVector = Icons.Filled.Download,
-                    contentDescription = "Download episode ${episode.number}",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }

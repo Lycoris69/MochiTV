@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.lycoris.mochitv.data.download.EpisodeDownloader
 import com.lycoris.mochitv.domain.model.Episode
 import com.lycoris.mochitv.domain.usecase.GetEpisodesUseCase
+import com.lycoris.mochitv.domain.usecase.GetPlaybackPositionUseCase
 import com.lycoris.mochitv.domain.usecase.GetStreamUrlUseCase
 import com.lycoris.mochitv.domain.usecase.RecordWatchProgressUseCase
+import com.lycoris.mochitv.domain.usecase.SavePlaybackPositionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +24,8 @@ class PlayerViewModel @Inject constructor(
     private val getStreamUrlUseCase: GetStreamUrlUseCase,
     private val episodeDownloader: EpisodeDownloader,
     private val recordWatchProgressUseCase: RecordWatchProgressUseCase,
+    private val getPlaybackPositionUseCase: GetPlaybackPositionUseCase,
+    private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
 ) : ViewModel() {
 
     private var currentEpisodeId: String = checkNotNull(savedStateHandle["episodeId"])
@@ -51,6 +55,29 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { recordWatchProgressUseCase(episode.id) }
     }
 
+    /**
+     * Persists the current playback position.
+     *
+     * Should be called from the UI on [androidx.lifecycle.Lifecycle.Event.ON_PAUSE]
+     * and also in the [androidx.compose.runtime.DisposableEffect] cleanup when the
+     * player composable leaves composition (back press / next-episode transition).
+     *
+     * If [positionMs] ≤ 0, or if the episode is nearly finished (within the last
+     * 5 s of [durationMs]), [SavePlaybackPositionUseCase] handles the cleanup
+     * automatically (no-op or delete).
+     */
+    fun savePosition(positionMs: Long, durationMs: Long) {
+        val episode = (_uiState.value as? PlayerUiState.Ready)?.episode ?: return
+        viewModelScope.launch {
+            savePlaybackPositionUseCase(
+                episodeId = episode.id,
+                animeId = animeId,
+                positionMs = positionMs,
+                durationMs = durationMs,
+            )
+        }
+    }
+
     private fun loadStream() {
         viewModelScope.launch {
             _uiState.value = PlayerUiState.Loading
@@ -69,14 +96,20 @@ class PlayerViewModel @Inject constructor(
                 return@launch
             }
 
+            // Load the saved position before emitting Ready so the player can
+            // seek to it immediately without an extra state transition.
+            val savedPositionMs = getPlaybackPositionUseCase(episode.id)?.positionMs ?: 0L
+
             val cachedUri = episodeDownloader.getDownloadedUri(episode.id)
             if (cachedUri != null) {
-                _uiState.value = PlayerUiState.Ready(cachedUri, episode)
+                _uiState.value = PlayerUiState.Ready(cachedUri, episode, savedPositionMs)
                 return@launch
             }
 
             getStreamUrlUseCase(episode)
-                .onSuccess { url -> _uiState.value = PlayerUiState.Ready(url, episode) }
+                .onSuccess { url ->
+                    _uiState.value = PlayerUiState.Ready(url, episode, savedPositionMs)
+                }
                 .onFailure { error ->
                     _uiState.value = PlayerUiState.Error(
                         error.message ?: "Could not resolve stream URL"
