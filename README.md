@@ -6,7 +6,8 @@ An Android app for watching anime, built with Kotlin and Jetpack Compose. Conten
 - [anime-sama.to](https://anime-sama.to/)
 - [voir-anime.to](https://voir-anime.to/)
 
-> **Personal use only.** This app is a private project built for personal viewing. It does not host, distribute, or store any copyrighted content — all media is streamed directly from the third-party source sites. Do not redistribute the APK or use this project for commercial purposes.
+> [!CAUTION]
+> **Personal use only. This app scrapes third-party websites without their consent (Not asked). Do not distribute, publish, or use commercially.**
 
 ---
 
