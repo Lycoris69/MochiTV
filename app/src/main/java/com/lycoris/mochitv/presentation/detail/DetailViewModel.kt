@@ -111,6 +111,13 @@ class DetailViewModel @Inject constructor(
         }
     }
 
+    fun cancelDownload(episodeId: String) {
+        // Remove from local resolving set (covers the pre-Media3 phase) then
+        // tell Media3 to discard the download regardless of its current state.
+        _resolvingEpisodes.update { it - episodeId }
+        episodeDownloader.cancelDownload(episodeId)
+    }
+
     fun downloadEpisode(episode: Episode) {
         if (episode.id in _resolvingEpisodes.value) return
         viewModelScope.launch {

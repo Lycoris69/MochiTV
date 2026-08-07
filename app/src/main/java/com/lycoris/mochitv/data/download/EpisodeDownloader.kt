@@ -105,4 +105,11 @@ class EpisodeDownloader @Inject constructor(
             /* foreground = */ false,
         )
     }
+
+    /**
+     * Cancels an in-progress or queued download for [episodeId].
+     * Media3's [DownloadService.sendRemoveDownload] works identically for both
+     * in-flight and completed downloads, so this is a direct alias.
+     */
+    fun cancelDownload(episodeId: String) = deleteDownload(episodeId)
 }

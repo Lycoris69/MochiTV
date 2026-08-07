@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -111,6 +112,7 @@ fun DetailScreen(
                 onToggleBookmark = viewModel::toggleBookmark,
                 onEpisodeClick = onEpisodeClick,
                 onDownload = viewModel::downloadEpisode,
+                onCancel = viewModel::cancelDownload,
                 episodeDownloadStates = episodeDownloadStates,
                 watchedEpisodeIds = watchedEpisodeIds,
                 playbackPositions = playbackPositions,
@@ -133,6 +135,7 @@ private fun DetailContent(
     onToggleBookmark: () -> Unit,
     onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
     onDownload: (Episode) -> Unit,
+    onCancel: (episodeId: String) -> Unit,
     episodeDownloadStates: Map<String, EpisodeDownloadState>,
     watchedEpisodeIds: Set<String>,
     playbackPositions: Map<String, PlaybackPosition>,
@@ -301,6 +304,7 @@ private fun DetailContent(
                         episode = episode,
                         onClick = { onEpisodeClick(episode.id, episode.animeId) },
                         onDownload = { onDownload(episode) },
+                        onCancel = { onCancel(episode.id) },
                         downloadState = episodeDownloadStates[episode.id]
                             ?: EpisodeDownloadState.None,
                         isWatched = episode.id in watchedEpisodeIds,
@@ -362,6 +366,7 @@ private fun EpisodeRow(
     episode: Episode,
     onClick: () -> Unit,
     onDownload: () -> Unit,
+    onCancel: () -> Unit,
     downloadState: EpisodeDownloadState,
     modifier: Modifier = Modifier,
     isWatched: Boolean = false,
@@ -438,12 +443,20 @@ private fun EpisodeRow(
             when (downloadState) {
                 EpisodeDownloadState.Resolving,
                 EpisodeDownloadState.Queued,
-                EpisodeDownloadState.Downloading -> CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .size(20.dp),
-                    strokeWidth = 2.dp,
-                )
+                EpisodeDownloadState.Downloading -> IconButton(onClick = onCancel) {
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Cancel download",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(10.dp),
+                        )
+                    }
+                }
 
                 EpisodeDownloadState.Completed -> Icon(
                     imageVector = Icons.Filled.DownloadDone,

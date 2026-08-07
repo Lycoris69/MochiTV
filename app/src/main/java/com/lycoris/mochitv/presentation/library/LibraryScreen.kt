@@ -34,8 +34,10 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -59,11 +61,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.lycoris.mochitv.data.local.dao.FolderWithCount
 import com.lycoris.mochitv.domain.model.Anime
+import com.lycoris.mochitv.presentation.home.WatchHistoryItem
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun LibraryScreen(
     onAnimeClick: (animeId: String) -> Unit,
+    onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
@@ -74,6 +78,7 @@ fun LibraryScreen(
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val showCreateDialog by viewModel.showCreateDialog.collectAsStateWithLifecycle()
     val showMoveDialog by viewModel.showMoveDialog.collectAsStateWithLifecycle()
+    val watchHistory by viewModel.watchHistory.collectAsStateWithLifecycle()
 
     val isSelecting = selectedIds.isNotEmpty()
 
@@ -160,6 +165,32 @@ fun LibraryScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            // ---- "Continue Watching" row — only at root ----------------------
+            if (currentFolderId == null && watchHistory.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column {
+                        Text(
+                            text = "Continue Watching",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(start = 8.dp, top = 8.dp, bottom = 6.dp),
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            items(watchHistory, key = { it.episode.id }) { item ->
+                                WatchHistoryCard(
+                                    item = item,
+                                    onClick = { onEpisodeClick(item.episode.id, item.anime.id) },
+                                )
+                            }
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
+            }
+
             // Folder chips row — only at root when folders exist
             if (currentFolderId == null && folders.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -216,6 +247,53 @@ fun LibraryScreen(
 }
 
 // ----- Private composables ---------------------------------------------------
+
+@Composable
+private fun WatchHistoryCard(
+    item: WatchHistoryItem,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.width(120.dp),
+    ) {
+        Column {
+            Box {
+                AsyncImage(
+                    model = item.anime.thumbnailUrl.ifBlank { null },
+                    contentDescription = item.anime.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f),
+                )
+                // Progress bar pinned to the bottom of the thumbnail.
+                if (item.position.durationMs > 0L) {
+                    LinearProgressIndicator(
+                        progress = { item.position.progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .align(Alignment.BottomStart),
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                Text(
+                    text = item.anime.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "Ep ${item.episode.number}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

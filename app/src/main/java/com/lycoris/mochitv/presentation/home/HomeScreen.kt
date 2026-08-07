@@ -13,9 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -31,7 +29,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -59,7 +56,6 @@ import com.lycoris.mochitv.domain.model.Anime
 @Composable
 fun HomeScreen(
     onAnimeClick: (animeId: String) -> Unit,
-    onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -69,7 +65,6 @@ fun HomeScreen(
     val isLatestLoading by viewModel.isLatestLoading.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
-    val watchHistory by viewModel.watchHistory.collectAsStateWithLifecycle()
 
     var fieldFocused by remember { mutableStateOf(false) }
     val showHistory = fieldFocused && searchQuery.isBlank() && searchHistory.isNotEmpty()
@@ -130,7 +125,6 @@ fun HomeScreen(
             } else {
                 when (val state = uiState) {
                     is HomeUiState.Idle -> LatestReleasesContent(
-                        watchHistory = watchHistory,
                         animeList = latestReleases,
                         isLoading = isLatestLoading,
                         isLoadingMore = isLoadingMore,
@@ -138,7 +132,6 @@ fun HomeScreen(
                             if (searchQuery.isNotBlank()) viewModel.saveSearch(searchQuery)
                             onAnimeClick(animeId)
                         },
-                        onEpisodeClick = onEpisodeClick,
                         onRefresh = viewModel::refreshLatest,
                         onLoadMore = viewModel::loadMoreLatest,
                     )
@@ -221,38 +214,14 @@ private fun SearchHistoryList(
 
 @Composable
 private fun LatestReleasesContent(
-    watchHistory: List<WatchHistoryItem>,
     animeList: List<Anime>,
     isLoading: Boolean,
     isLoadingMore: Boolean,
     onAnimeClick: (animeId: String) -> Unit,
-    onEpisodeClick: (episodeId: String, animeId: String) -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-
-        // ---- "Continue Watching" row ----------------------------------------
-        if (watchHistory.isNotEmpty()) {
-            Text(
-                text = "Continue Watching",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp),
-            )
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                items(watchHistory, key = { it.episode.id }) { item ->
-                    WatchHistoryCard(
-                        item = item,
-                        onClick = { onEpisodeClick(item.episode.id, item.anime.id) },
-                    )
-                }
-            }
-            HorizontalDivider(modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp))
-        }
 
         // ---- "Last releases" header -----------------------------------------
         Row(
@@ -326,55 +295,6 @@ private fun LatestReleasesContent(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-// ---- "Continue Watching" card ----------------------------------------------
-
-@Composable
-private fun WatchHistoryCard(
-    item: WatchHistoryItem,
-    onClick: () -> Unit,
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.width(120.dp),
-    ) {
-        Column {
-            Box {
-                AsyncImage(
-                    model = item.anime.thumbnailUrl.ifBlank { null },
-                    contentDescription = item.anime.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(2f / 3f),
-                )
-                // Progress bar pinned to the bottom of the thumbnail.
-                if (item.position.durationMs > 0L) {
-                    LinearProgressIndicator(
-                        progress = { item.position.progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .align(Alignment.BottomStart),
-                    )
-                }
-            }
-            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                Text(
-                    text = item.anime.title,
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "Ep ${item.episode.number}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }

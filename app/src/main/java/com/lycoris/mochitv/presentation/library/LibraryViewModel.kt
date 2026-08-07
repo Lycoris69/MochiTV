@@ -9,6 +9,8 @@ import com.lycoris.mochitv.data.local.dao.LibraryFolderDao
 import com.lycoris.mochitv.data.local.entity.LibraryFolderEntity
 import com.lycoris.mochitv.data.local.entity.toDomain
 import com.lycoris.mochitv.domain.model.Anime
+import com.lycoris.mochitv.domain.usecase.GetWatchHistoryUseCase
+import com.lycoris.mochitv.presentation.home.WatchHistoryItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +31,12 @@ class LibraryViewModel @Inject constructor(
     private val bookmarkDao: BookmarkDao,
     private val animeDao: AnimeDao,
     private val libraryFolderDao: LibraryFolderDao,
+    getWatchHistoryUseCase: GetWatchHistoryUseCase,
 ) : ViewModel() {
+
+    /** Most recently watched episodes, newest-first, limited to 10 items. */
+    val watchHistory: StateFlow<List<WatchHistoryItem>> = getWatchHistoryUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ---- Navigation ---------------------------------------------------------
 
