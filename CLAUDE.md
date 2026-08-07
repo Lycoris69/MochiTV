@@ -125,6 +125,8 @@ Offline episode downloads are handled by **Media3 `DownloadService`** (supports 
 | `domain/usecase/DownloadEpisodeUseCase.kt` | Resolves stream URL then calls `EpisodeDownloader.enqueue()`; uses `mapCatching` (not `map`) |
 | `presentation/detail/EpisodeDownloadState.kt` | Sealed interface: `None / Resolving / Queued / Downloading / Completed / Failed` |
 
+**Cancelling downloads:** `EpisodeDownloader.cancelDownload(id)` calls `DownloadService.sendRemoveDownload` (same as `deleteDownload` — Media3 removes regardless of state). `DetailViewModel.cancelDownload(id)` clears `_resolvingEpisodes` first (handles the pre-Media3 resolving phase) then delegates. In `DetailScreen`, the `Resolving/Queued/Downloading` branch renders an `IconButton` containing a stacked `CircularProgressIndicator` + small `Close` icon — tap to cancel immediately.
+
 Downloaded content lives in `<externalFilesDir>/media3_downloads/`. `PlayerScreen` builds ExoPlayer with a `CacheDataSource.Factory` backed by `DownloadManagerHolder.getCache(context)` so downloaded episodes play fully offline. `PlayerViewModel` checks `getDownloadedUri()` first — if the episode is cached, it skips all network stream resolution.
 
 `DetailViewModel` combines `_resolvingEpisodes: MutableStateFlow<Set<String>>` with `episodeDownloader.observeStates()` via `combine()` to produce `episodeDownloadStates: StateFlow<Map<String, EpisodeDownloadState>>`.
@@ -132,6 +134,23 @@ Downloaded content lives in `<externalFilesDir>/media3_downloads/`. `PlayerScree
 **Deleting downloads (Downloads tab):** `DownloadsViewModel` exposes a `deleteDialogState: StateFlow<DeleteDialogState?>`. Tapping the trash icon calls `openDeleteDialog()`, which queries `EpisodeDao.getAllByAnimeId()` for each selected series and filters to episodes where `getDownloadedUri() != null`. All episodes are checked by default (`DeleteDialogState.checkedIds`). `confirmDelete()` fires `EpisodeDownloader.deleteDownload()` for each checked id. `DownloadDeleteState.kt` holds the `EpisodeItem` and `DeleteDialogState` data classes.
 
 Required manifest entries: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `MochiDownloadService` with `foregroundServiceType="dataSync"`.
+
+### Playback Position / Resume & History
+
+`PlaybackPositionEntity` (`tableName = "playback_positions"`) stores `episodeId` (PK), `animeId`, `positionMs`, `durationMs`, `savedAtMs`. Unlike `WatchProgressEntity` (a one-shot "seen" flag), this table is a live cursor — it is upserted continuously and deleted when the episode is finished (within 5 s of end).
+
+| File | Role |
+|---|---|
+| `data/local/entity/PlaybackPositionEntity.kt` | Room entity; `toDomain()` maps to `PlaybackPosition` |
+| `data/local/dao/PlaybackPositionDao.kt` | `@Upsert save()`, `get(episodeId)`, `observeAll()` (newest-first), `observeByAnimeId()`, `delete(episodeId)` |
+| `domain/model/PlaybackPosition.kt` | Domain model; computed `progress: Float` (positionMs / durationMs) |
+| `domain/usecase/SavePlaybackPositionUseCase.kt` | Upserts position; auto-deletes when within last 5 s of duration (episode finished) |
+| `domain/usecase/GetPlaybackPositionUseCase.kt` | Suspend lookup by episodeId → `PlaybackPosition?` |
+| `domain/usecase/GetPlaybackPositionsForAnimeUseCase.kt` | `Flow<Map<String, PlaybackPosition>>` for the detail screen progress bars |
+| `domain/usecase/GetWatchHistoryUseCase.kt` | Joins position rows with `AnimeEntity` + `EpisodeEntity`; emits `List<WatchHistoryItem>` (max 10, newest-first) |
+| `presentation/home/WatchHistoryItem.kt` | UI model: `PlaybackPosition` + `Anime` + `Episode` |
+
+`PlayerScreen` saves position in `DisposableEffect.onDispose` (covers back, home, next episode) and on `ON_PAUSE` lifecycle events (screen lock, app switch). On open it seeks to `savedPositionMs` from `PlayerUiState.Ready`. `DetailScreen` shows a `LinearProgressIndicator` under each episode row that has a saved incomplete position. `LibraryScreen` shows a horizontal "Continue Watching" card row (with progress bars) at the root level above the folder chips.
 
 ### Watch Progress / Seen Indicator
 
@@ -148,14 +167,15 @@ Required manifest entries: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`,
 
 ### Room Database
 
-- `MochiDatabase` version **6** (`fallbackToDestructiveMigration()` is set — no migration scripts)
+- `MochiDatabase` version **7** (`fallbackToDestructiveMigration()` is set — no migration scripts)
   - v1 → v2: added `bookmarks` table
   - v2 → v3: added `search_history` table
   - v3 → v4: added `lastReleaseDate` to `anime`, `releaseDate` to `episode`
   - v4 → v5: added `watch_progress` table
   - v5 → v6: added `library_folders` table; added `folderId` column to `bookmarks`
-- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`, `SearchHistoryEntity`, `WatchProgressEntity`, `LibraryFolderEntity`
-- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`, `SearchHistoryDao`, `WatchProgressDao`, `LibraryFolderDao`
+  - v6 → v7: added `playback_positions` table
+- Entities: `AnimeEntity`, `EpisodeEntity`, `BookmarkEntity`, `SearchHistoryEntity`, `WatchProgressEntity`, `LibraryFolderEntity`, `PlaybackPositionEntity`
+- DAOs: `AnimeDao`, `EpisodeDao`, `BookmarkDao`, `SearchHistoryDao`, `WatchProgressDao`, `LibraryFolderDao`, `PlaybackPositionDao`
 
 ## Scraping Notes
 

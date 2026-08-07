@@ -81,6 +81,16 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ## Changelog
 
+### v1.5.2
+- Cancel any queued or active download by tapping the spinner on the episode row — cancels immediately, no dialog
+- "Continue Watching" row moved from the Home screen to the **Library** tab (appears above folder chips at the root level only) — keeps the home feed clean
+
+### v1.5.1
+- **Resume playback**: episodes remember your exact position — re-opening one resumes from where you left off, even days later
+- **Continue Watching**: horizontal row of recently-watched episodes with per-card progress bars (Library tab as of v1.5.2)
+- **Pause on focus loss**: switching apps or locking the screen pauses the player and saves your position automatically
+- **Episode progress bars**: a thin indicator appears under any started-but-unfinished episode in the series detail screen
+
 ### v1.5.0
 - Top bar height reduced to 30dp on all screens (Home, Library, Downloads, Detail)
 
