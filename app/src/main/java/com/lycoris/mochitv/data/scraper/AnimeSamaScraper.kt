@@ -227,14 +227,23 @@ class AnimeSamaScraper @Inject constructor(
 
     /**
      * For a given episode [index], picks the best embed URL across all player
-     * arrays.  Priority: sibnet > vidmoly > streamtape > other > embed4me.
+     * arrays.
+     *
+     * Priority: vidmoly > sibnet > streamtape > other > embed4me.
+     *
+     * Vidmoly is preferred over Sibnet because Vidmoly produces stable m3u8 URLs
+     * with no time-limited expiry, making them reliable for both streaming and
+     * offline downloads. Sibnet URLs involve a signed CDN redirect whose token can
+     * expire before Media3 DownloadService finishes writing, causing silent download
+     * failures. Sibnet remains as a fallback for episodes where no Vidmoly source
+     * exists.
      */
     private fun pickPreferredUrl(allPlayers: Map<Int, List<String>>, index: Int): String? {
         val candidates = allPlayers.values
             .mapNotNull { urls -> urls.getOrNull(index)?.takeIf { it.isNotBlank() } }
         if (candidates.isEmpty()) return null
-        return candidates.firstOrNull { "sibnet.ru" in it }
-            ?: candidates.firstOrNull { "vidmoly" in it }
+        return candidates.firstOrNull { "vidmoly" in it }
+            ?: candidates.firstOrNull { "sibnet.ru" in it }
             ?: candidates.firstOrNull { "streamtape" in it }
             ?: candidates.firstOrNull { "embed4me.com" !in it }
             ?: candidates.first()

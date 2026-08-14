@@ -11,6 +11,7 @@ import com.lycoris.mochitv.domain.model.Episode
 import com.lycoris.mochitv.domain.model.SourceSite
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
@@ -134,54 +135,115 @@ class VoirAnimeScraper @Inject constructor(
     override suspend fun getStreamUrl(episodePageUrl: String): String = withContext(Dispatchers.IO) {
         val episodePage = fetchDocument(episodePageUrl)
 
-        // ---------------------------------------------------------------------------
-        // Two-step extraction: episode page → embed page → direct stream URL
-        // ---------------------------------------------------------------------------
+        // Step 1: collect ALL candidate embed URLs (src + data-src, every iframe).
+        val embedUrls = collectIframeUrls(episodePage)
 
-        // Step 1: resolve the first iframe embed URL from the episode page.
-        //
-        // voir-anime.to (Madara theme) exposes all available player sources in the
-        // `thisChapterSources` JS variable, with the primary/default player rendered
-        // as a plain <iframe> element in the DOM.  We take the first iframe.
-        val embedUrl = episodePage.select("iframe[src]").firstOrNull()
-            ?.attr("abs:src")
-            ?.takeIf { it.isNotBlank() }
-
-        if (embedUrl != null) {
-            // Step 2: fetch the embed page and run extractors in priority order.
-            runCatching {
+        // Step 2: try each embed URL through the extractor chain.
+        for (embedUrl in embedUrls) {
+            val result = runCatching {
                 val embedHtml = fetchRaw(embedUrl, referer = episodePageUrl)
                 val extractors: List<StreamExtractor> = listOf(
-                    VidmolyExtractor,    // vidmoly.biz  — JWPlayer sources array
-                    StreamtapeExtractor, // streamtape.com — robotlink JS obfuscation
-                    GenericExtractor,    // any host      — file:"..." / var fileUrl = "..."
+                    VidmolyExtractor,
+                    StreamtapeExtractor,
+                    GenericExtractor,
                 )
-                for (extractor in extractors) {
-                    val url = extractor.extract(embedUrl, embedHtml)
-                    if (!url.isNullOrBlank()) return@withContext url
-                }
-            }
-            // If the embed page fetch or all extractors failed, fall through to legacy strategies.
+                extractors.firstNotNullOfOrNull { it.extract(embedUrl, embedHtml) }
+            }.getOrNull()
+            if (!result.isNullOrBlank()) return@withContext result
         }
 
-        // ---------------------------------------------------------------------------
-        // Legacy fallback: scan the episode page scripts directly.
-        // Handles sites that embed the stream URL in the page itself rather than in
-        // a nested iframe embed page.
-        // ---------------------------------------------------------------------------
+        // Step 3: Madara AJAX fallback — some pages load the player dynamically
+        // via wp-admin/admin-ajax.php rather than in static HTML.
+        val ajaxEmbedUrl = runCatching { fetchMadaraAjaxEmbed(episodePage, episodePageUrl) }.getOrNull()
+        if (ajaxEmbedUrl != null) {
+            val result = runCatching {
+                val embedHtml = fetchRaw(ajaxEmbedUrl, referer = episodePageUrl)
+                val extractors: List<StreamExtractor> = listOf(
+                    VidmolyExtractor,
+                    StreamtapeExtractor,
+                    GenericExtractor,
+                )
+                extractors.firstNotNullOfOrNull { it.extract(ajaxEmbedUrl, embedHtml) }
+            }.getOrNull()
+            if (!result.isNullOrBlank()) return@withContext result!!
+        }
+
+        // Step 4: legacy — scan the episode page's own <script> blocks.
         val scripts = episodePage.select("script").joinToString("\n") { it.data() }
 
-        // Legacy strategy 2: JWPlayer file:"https://...m3u8"
         Regex("""file\s*:\s*["']([^"']+\.(?:mp4|m3u8|mkv)[^"']*)["']""")
             .find(scripts)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
             ?.let { return@withContext it }
 
-        // Legacy strategy 3: plain JS variable  →  var src = "https://..."
         Regex("""(?:src|videoUrl|streamUrl)\s*=\s*["']([^"']+)["']""")
             .find(scripts)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
             ?.let { return@withContext it }
 
         error("VoirAnimeScraper: could not extract stream URL from $episodePageUrl")
+    }
+
+    /**
+     * Collects all candidate iframe embed URLs from [doc].
+     * Checks both `src` and `data-src`; deduplicates in order found.
+     */
+    private fun collectIframeUrls(doc: org.jsoup.nodes.Document): List<String> =
+        doc.select("iframe")
+            .flatMap { el ->
+                listOfNotNull(
+                    el.attr("abs:src").takeIf { it.isNotBlank() && it.startsWith("http") },
+                    el.attr("abs:data-src").takeIf { it.isNotBlank() && it.startsWith("http") },
+                )
+            }
+            .distinct()
+
+    /**
+     * Attempts to load the episode player via the Madara AJAX reading endpoint.
+     *
+     * Some Madara-theme pages omit the iframe from static HTML and load it
+     * dynamically via `wp-admin/admin-ajax.php`. This method extracts the
+     * nonce and chapter-id from the episode page's inline scripts, POSTs to
+     * the AJAX endpoint, and returns the first iframe src found in the response.
+     *
+     * Returns `null` if the nonce/chapter-id cannot be found or the request fails.
+     */
+    private fun fetchMadaraAjaxEmbed(episodePage: org.jsoup.nodes.Document, episodePageUrl: String): String? {
+        val scripts = episodePage.select("script").joinToString("\n") { it.data() }
+
+        val nonce = Regex("""chapter_ajax_nonce\s*=\s*['"]([^'"]+)['"]""")
+            .find(scripts)?.groupValues?.get(1)
+            ?: Regex(""""nonce"\s*:\s*"([a-f0-9]+)"""").find(scripts)?.groupValues?.get(1)
+            ?: return null
+
+        val chapterId = Regex("""chapter_id\s*:\s*['"]?(\d+)['"]?""")
+            .find(scripts)?.groupValues?.get(1)
+            ?: Regex("""["']chapter_id["']\s*:\s*['"]?(\d+)['"]?""").find(scripts)?.groupValues?.get(1)
+            ?: return null
+
+        val formBody = FormBody.Builder()
+            .add("action", "manga_get_chapter_ajax")
+            .add("chapter_id", chapterId)
+            .add("nonce", nonce)
+            .build()
+
+        val request = Request.Builder()
+            .url("${BASE_URL}wp-admin/admin-ajax.php")
+            .post(formBody)
+            .header("User-Agent", UserAgents.random())
+            .header("Referer", episodePageUrl)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .build()
+
+        val html = okHttpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) return null
+            resp.body?.string() ?: return null
+        }
+
+        return Jsoup.parseBodyFragment(html)
+            .select("iframe")
+            .firstNotNullOfOrNull { el ->
+                el.attr("abs:src").takeIf { it.isNotBlank() && it.startsWith("http") }
+                    ?: el.attr("src").takeIf { it.startsWith("http") }
+            }
     }
 
     override suspend fun getAnimeSynopsis(animePageUrl: String): String = withContext(Dispatchers.IO) {
