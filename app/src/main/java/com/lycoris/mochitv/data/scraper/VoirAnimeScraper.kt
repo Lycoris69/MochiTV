@@ -135,40 +135,27 @@ class VoirAnimeScraper @Inject constructor(
     override suspend fun getStreamUrl(episodePageUrl: String): String = withContext(Dispatchers.IO) {
         val episodePage = fetchDocument(episodePageUrl)
 
-        // Step 1: collect ALL candidate embed URLs (src + data-src, every iframe).
-        val embedUrls = collectIframeUrls(episodePage)
+        // Gather every candidate embed URL the page exposes and try each one through
+        // the extractor chain.  Sources are ranked: thisChapterSources (Madara JS
+        // variable, contains ALL available players) → player-switcher data-* attributes
+        // → static iframes → Madara AJAX endpoint.
+        val embedUrls = collectAllEmbedUrls(episodePage, episodePageUrl)
 
-        // Step 2: try each embed URL through the extractor chain.
+        val extractors: List<StreamExtractor> = listOf(
+            VidmolyExtractor,
+            StreamtapeExtractor,
+            GenericExtractor,
+        )
+
         for (embedUrl in embedUrls) {
             val result = runCatching {
                 val embedHtml = fetchRaw(embedUrl, referer = episodePageUrl)
-                val extractors: List<StreamExtractor> = listOf(
-                    VidmolyExtractor,
-                    StreamtapeExtractor,
-                    GenericExtractor,
-                )
                 extractors.firstNotNullOfOrNull { it.extract(embedUrl, embedHtml) }
             }.getOrNull()
             if (!result.isNullOrBlank()) return@withContext result
         }
 
-        // Step 3: Madara AJAX fallback — some pages load the player dynamically
-        // via wp-admin/admin-ajax.php rather than in static HTML.
-        val ajaxEmbedUrl = runCatching { fetchMadaraAjaxEmbed(episodePage, episodePageUrl) }.getOrNull()
-        if (ajaxEmbedUrl != null) {
-            val result = runCatching {
-                val embedHtml = fetchRaw(ajaxEmbedUrl, referer = episodePageUrl)
-                val extractors: List<StreamExtractor> = listOf(
-                    VidmolyExtractor,
-                    StreamtapeExtractor,
-                    GenericExtractor,
-                )
-                extractors.firstNotNullOfOrNull { it.extract(ajaxEmbedUrl, embedHtml) }
-            }.getOrNull()
-            if (!result.isNullOrBlank()) return@withContext result!!
-        }
-
-        // Step 4: legacy — scan the episode page's own <script> blocks.
+        // Last-resort: scan the episode page's own <script> blocks directly.
         val scripts = episodePage.select("script").joinToString("\n") { it.data() }
 
         Regex("""file\s*:\s*["']([^"']+\.(?:mp4|m3u8|mkv)[^"']*)["']""")
@@ -183,41 +170,75 @@ class VoirAnimeScraper @Inject constructor(
     }
 
     /**
-     * Collects all candidate iframe embed URLs from [doc].
-     * Checks both `src` and `data-src`; deduplicates in order found.
+     * Collects every candidate embed URL from an episode page, in priority order:
+     *
+     * 1. **`thisChapterSources`** — Madara-standard JS object that lists ALL available
+     *    player sources, e.g. `{"1":"https://vidmoly.biz/...","2":"https://streamtape..."}`.
+     *    This is the primary source and is present even when no iframe is rendered.
+     *
+     * 2. **Player-switcher data attributes** — `data-embed`, `data-video`, `data-url`,
+     *    `data-src`, `data-link` on `<a>` / `<li>` / `<div>` player-tab elements.
+     *
+     * 3. **Static iframes** — `<iframe src>` and `<iframe data-src>` (lazy-loaded).
+     *
+     * 4. **Madara AJAX** — POSTs to `wp-admin/admin-ajax.php` with the chapter nonce
+     *    to fetch the dynamically-loaded player HTML and its iframes.
+     *
+     * All results are deduplicated while preserving priority order.
      */
-    private fun collectIframeUrls(doc: org.jsoup.nodes.Document): List<String> =
-        doc.select("iframe")
-            .flatMap { el ->
-                listOfNotNull(
-                    el.attr("abs:src").takeIf { it.isNotBlank() && it.startsWith("http") },
-                    el.attr("abs:data-src").takeIf { it.isNotBlank() && it.startsWith("http") },
-                )
+    private fun collectAllEmbedUrls(doc: Document, pageUrl: String): List<String> {
+        val seen = linkedSetOf<String>()
+
+        fun add(url: String) {
+            if (url.startsWith("http")) seen.add(url)
+        }
+
+        // 1. thisChapterSources JS variable
+        val scripts = doc.select("script").joinToString("\n") { it.data() }
+        Regex("""thisChapterSources\s*=\s*\{([^}]+)\}""").find(scripts)?.let { m ->
+            Regex(""""(https?://[^"]+)"""").findAll(m.groupValues[1])
+                .forEach { add(it.groupValues[1]) }
+        }
+
+        // 2. Player-switcher elements with known data attributes
+        for (attr in listOf("data-embed", "data-video", "data-url", "data-src", "data-link")) {
+            doc.select("[$attr]").forEach { el ->
+                val v = el.attr(attr)
+                add(if (v.startsWith("//")) "https:$v" else v)
             }
-            .distinct()
+        }
+
+        // 3. Static iframes (src + data-src)
+        doc.select("iframe").forEach { el ->
+            listOf(el.attr("abs:src"), el.attr("abs:data-src")).forEach { add(it) }
+        }
+
+        // 4. Madara AJAX fallback
+        if (seen.isEmpty()) {
+            runCatching { fetchMadaraAjaxEmbeds(doc, pageUrl) }.getOrNull()
+                ?.forEach { add(it) }
+        }
+
+        return seen.toList()
+    }
 
     /**
-     * Attempts to load the episode player via the Madara AJAX reading endpoint.
+     * POSTs to `wp-admin/admin-ajax.php` (Madara AJAX reading endpoint) and
+     * returns all iframe embed URLs found in the response HTML.
      *
-     * Some Madara-theme pages omit the iframe from static HTML and load it
-     * dynamically via `wp-admin/admin-ajax.php`. This method extracts the
-     * nonce and chapter-id from the episode page's inline scripts, POSTs to
-     * the AJAX endpoint, and returns the first iframe src found in the response.
-     *
-     * Returns `null` if the nonce/chapter-id cannot be found or the request fails.
+     * Used only when the static page has no resolvable embed URLs at all.
      */
-    private fun fetchMadaraAjaxEmbed(episodePage: org.jsoup.nodes.Document, episodePageUrl: String): String? {
+    private fun fetchMadaraAjaxEmbeds(episodePage: Document, episodePageUrl: String): List<String> {
         val scripts = episodePage.select("script").joinToString("\n") { it.data() }
 
         val nonce = Regex("""chapter_ajax_nonce\s*=\s*['"]([^'"]+)['"]""")
             .find(scripts)?.groupValues?.get(1)
             ?: Regex(""""nonce"\s*:\s*"([a-f0-9]+)"""").find(scripts)?.groupValues?.get(1)
-            ?: return null
+            ?: return emptyList()
 
-        val chapterId = Regex("""chapter_id\s*:\s*['"]?(\d+)['"]?""")
+        val chapterId = Regex("""chapter_id\s*[=:]\s*['"]?(\d+)['"]?""")
             .find(scripts)?.groupValues?.get(1)
-            ?: Regex("""["']chapter_id["']\s*:\s*['"]?(\d+)['"]?""").find(scripts)?.groupValues?.get(1)
-            ?: return null
+            ?: return emptyList()
 
         val formBody = FormBody.Builder()
             .add("action", "manga_get_chapter_ajax")
@@ -234,16 +255,17 @@ class VoirAnimeScraper @Inject constructor(
             .build()
 
         val html = okHttpClient.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) return null
-            resp.body?.string() ?: return null
+            if (!resp.isSuccessful) return emptyList()
+            resp.body?.string() ?: return emptyList()
         }
 
-        return Jsoup.parseBodyFragment(html)
-            .select("iframe")
-            .firstNotNullOfOrNull { el ->
-                el.attr("abs:src").takeIf { it.isNotBlank() && it.startsWith("http") }
-                    ?: el.attr("src").takeIf { it.startsWith("http") }
-            }
+        val fragment = Jsoup.parseBodyFragment(html)
+        return fragment.select("iframe").flatMap { el ->
+            listOfNotNull(
+                el.attr("abs:src").takeIf { it.startsWith("http") },
+                el.attr("abs:data-src").takeIf { it.startsWith("http") },
+            )
+        }.distinct()
     }
 
     override suspend fun getAnimeSynopsis(animePageUrl: String): String = withContext(Dispatchers.IO) {
