@@ -48,10 +48,10 @@ sealed class Screen(val route: String) {
 }
 
 private val bottomNavItems = listOf(
-    Triple(Screen.Home,      "Accueil",      Icons.Filled.Home),
-    Triple(Screen.Library,   "Bibliothèque", Icons.Filled.Bookmark),
-    Triple(Screen.Downloads, "Téléch.",      Icons.Filled.Download),
-    Triple(Screen.Settings,  "Paramètres",   Icons.Filled.Settings),
+    Triple(Screen.Home,      "Home",      Icons.Filled.Home),
+    Triple(Screen.Library,   "Library",   Icons.Filled.Bookmark),
+    Triple(Screen.Downloads, "Downloads", Icons.Filled.Download),
+    Triple(Screen.Settings,  "Settings",  Icons.Filled.Settings),
 )
 
 private val bottomNavRoutes = setOf(

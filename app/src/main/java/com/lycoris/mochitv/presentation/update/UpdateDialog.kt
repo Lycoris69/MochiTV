@@ -34,12 +34,12 @@ fun UpdateDialog(
             )
         },
         title = {
-            Text("Mise à jour disponible")
+            Text("Update available")
         },
         text = {
             Column {
                 Text(
-                    text  = "MochiTV ${info.latestVersion} est disponible " +
+                    text  = "MochiTV ${info.latestVersion} is available " +
                             "(installé : ${BuildConfig.VERSION_NAME}).",
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -58,12 +58,12 @@ fun UpdateDialog(
         },
         confirmButton = {
             TextButton(onClick = { onDownload(downloadUrl) }) {
-                Text("Télécharger")
+                Text("Download")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Plus tard")
+                Text("Later")
             }
         },
     )

@@ -46,7 +46,7 @@ class UpdateCheckViewModel @Inject constructor(
                     },
                     onFailure = { e ->
                         if (silent) UpdateCheckState.Idle
-                        else UpdateCheckState.Error(e.message ?: "Erreur inconnue")
+                        else UpdateCheckState.Error(e.message ?: "Unknown error")
                     },
                 )
         }

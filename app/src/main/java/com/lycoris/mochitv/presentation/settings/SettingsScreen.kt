@@ -63,7 +63,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Paramètres") },
+                title = { Text("Settings") },
                 expandedHeight = 30.dp,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -84,7 +84,7 @@ fun SettingsScreen(
             // ----------------------------------------------------------------
             // Theme
             // ----------------------------------------------------------------
-            item { SectionHeader("Thème") }
+            item { SectionHeader("Theme") }
             item {
                 ChipRow(
                     items    = ThemeMode.entries,
@@ -99,7 +99,7 @@ fun SettingsScreen(
             // ----------------------------------------------------------------
             // Accent colour
             // ----------------------------------------------------------------
-            item { SectionHeader("Couleur d'accent") }
+            item { SectionHeader("Accent Color") }
             item {
                 ColorSwatchRow(
                     selected = settings.accentColor,
@@ -110,9 +110,9 @@ fun SettingsScreen(
             item { SectionDivider() }
 
             // ----------------------------------------------------------------
-            // Police
+            // Font
             // ----------------------------------------------------------------
-            item { SectionHeader("Police") }
+            item { SectionHeader("Font") }
             item {
                 ChipRow(
                     items    = AppFont.entries,
@@ -125,9 +125,9 @@ fun SettingsScreen(
             item { SectionDivider() }
 
             // ----------------------------------------------------------------
-            // Taille du texte
+            // Text size
             // ----------------------------------------------------------------
-            item { SectionHeader("Taille du texte") }
+            item { SectionHeader("Text Size") }
             item {
                 ChipRow(
                     items    = FontScale.entries,
@@ -142,15 +142,15 @@ fun SettingsScreen(
             // ----------------------------------------------------------------
             // Preview card
             // ----------------------------------------------------------------
-            item { SectionHeader("Aperçu") }
+            item { SectionHeader("Preview") }
             item { PreviewCard(settings) }
 
             item { SectionDivider() }
 
             // ----------------------------------------------------------------
-            // À propos / mise à jour
+            // About / updates
             // ----------------------------------------------------------------
-            item { SectionHeader("À propos") }
+            item { SectionHeader("About") }
             item {
                 UpdateRow(
                     state    = updateState,
@@ -226,7 +226,7 @@ private fun ColorSwatchRow(
                 if (isSelected) {
                     Icon(
                         imageVector        = Icons.Filled.Check,
-                        contentDescription = "Sélectionné",
+                        contentDescription = "Selected",
                         tint               = Color.Black.copy(alpha = 0.7f),
                         modifier           = Modifier.size(20.dp),
                     )
@@ -253,11 +253,11 @@ private fun UpdateRow(
             )
             Text(
                 text  = when (state) {
-                    UpdateCheckState.Idle, UpdateCheckState.Checking -> "Vérification des mises à jour…"
-                    UpdateCheckState.UpToDate -> "L'application est à jour ✓"
+                    UpdateCheckState.Idle, UpdateCheckState.Checking -> "Checking for updates…"
+                    UpdateCheckState.UpToDate -> "App is up to date ✓"
                     is UpdateCheckState.Available ->
-                        "Version ${state.info.latestVersion} disponible !"
-                    is UpdateCheckState.Error -> "Erreur : ${state.message}"
+                        "Version ${state.info.latestVersion} available!"
+                    is UpdateCheckState.Error -> "Error: ${state.message}"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = when (state) {
@@ -276,7 +276,7 @@ private fun UpdateRow(
                 Button(onClick = onCheck) {
                     Icon(Icons.Filled.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Mettre à jour")
+                    Text("Update")
                 }
             }
             else -> {
@@ -284,7 +284,7 @@ private fun UpdateRow(
                     onClick  = onCheck,
                     enabled  = state != UpdateCheckState.Checking,
                 ) {
-                    Text("Vérifier")
+                    Text("Check")
                 }
             }
         }
@@ -307,13 +307,13 @@ private fun PreviewCard(settings: AppSettings) {
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text  = "Après deux ans et demi d'entraînement, Naruto revient au village de Konoha.",
+            text  = "After two and a half years of training, Naruto returns to Konoha village.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Action", "Aventure", "Shōnen").forEach { genre ->
+            listOf("Action", "Adventure", "Shōnen").forEach { genre ->
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
