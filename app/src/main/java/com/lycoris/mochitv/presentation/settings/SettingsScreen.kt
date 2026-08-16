@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,14 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -41,24 +36,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lycoris.mochitv.BuildConfig
 import com.lycoris.mochitv.domain.model.AccentColor
 import com.lycoris.mochitv.domain.model.AppFont
 import com.lycoris.mochitv.domain.model.AppSettings
 import com.lycoris.mochitv.domain.model.FontScale
 import com.lycoris.mochitv.domain.model.ThemeMode
-import com.lycoris.mochitv.presentation.update.UpdateCheckState
-import com.lycoris.mochitv.presentation.update.UpdateCheckViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
-    updateVm: UpdateCheckViewModel = hiltViewModel(),
 ) {
-    val settings     by viewModel.settings.collectAsStateWithLifecycle()
-    val updateState  by updateVm.state.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -145,18 +135,6 @@ fun SettingsScreen(
             item { SectionHeader("Preview") }
             item { PreviewCard(settings) }
 
-            item { SectionDivider() }
-
-            // ----------------------------------------------------------------
-            // About / updates
-            // ----------------------------------------------------------------
-            item { SectionHeader("About") }
-            item {
-                UpdateRow(
-                    state    = updateState,
-                    onCheck  = { updateVm.checkForUpdate(silent = false) },
-                )
-            }
         }
     }
 }
@@ -230,61 +208,6 @@ private fun ColorSwatchRow(
                         tint               = Color.Black.copy(alpha = 0.7f),
                         modifier           = Modifier.size(20.dp),
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun UpdateRow(
-    state: UpdateCheckState,
-    onCheck: () -> Unit,
-) {
-    Row(
-        modifier              = Modifier.fillMaxWidth(),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Column {
-            Text(
-                text  = "MochiTV ${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text  = when (state) {
-                    UpdateCheckState.Idle, UpdateCheckState.Checking -> "Checking for updates…"
-                    UpdateCheckState.UpToDate -> "App is up to date ✓"
-                    is UpdateCheckState.Available ->
-                        "Version ${state.info.latestVersion} available!"
-                    is UpdateCheckState.Error -> "Error: ${state.message}"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = when (state) {
-                    is UpdateCheckState.Available -> MaterialTheme.colorScheme.primary
-                    is UpdateCheckState.Error     -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                },
-            )
-        }
-
-        when (state) {
-            UpdateCheckState.Checking -> {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-            }
-            is UpdateCheckState.Available -> {
-                Button(onClick = onCheck) {
-                    Icon(Icons.Filled.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Update")
-                }
-            }
-            else -> {
-                OutlinedButton(
-                    onClick  = onCheck,
-                    enabled  = state != UpdateCheckState.Checking,
-                ) {
-                    Text("Check")
                 }
             }
         }
