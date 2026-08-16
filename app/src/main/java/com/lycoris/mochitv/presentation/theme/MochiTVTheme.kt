@@ -5,46 +5,77 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import com.lycoris.mochitv.domain.model.AccentColor
+import com.lycoris.mochitv.domain.model.AppSettings
+import com.lycoris.mochitv.domain.model.ThemeMode
 
-// ---- Palette ---------------------------------------------------------------
-// Deep violet / purple accent suits the anime-streaming aesthetic.
-// Swap these for a proper design-system palette before release.
+// ---------------------------------------------------------------------------
+// Colour scheme builder
+// ---------------------------------------------------------------------------
 
-private val Purple80  = Color(0xFFD0BCFF)
-private val Purple40  = Color(0xFF6650A4)
-private val Violet20  = Color(0xFF1A1A2E)
+private val Violet20 = Color(0xFF1A1A2E)
 
-private val DarkColorScheme = darkColorScheme(
-    primary         = Purple80,
-    secondary       = Color(0xFFCCC2DC),
-    tertiary        = Color(0xFFEFB8C8),
-    background      = Violet20,
-    surface         = Color(0xFF1E1E30),
-    onBackground    = Color(0xFFE6E1E5),
-    onSurface       = Color(0xFFE6E1E5),
-)
+private fun buildColorScheme(darkTheme: Boolean, accent: AccentColor) =
+    if (darkTheme) {
+        darkColorScheme(
+            primary         = accent.darkPrimary,
+            secondary       = Color(0xFFCCC2DC),
+            tertiary        = Color(0xFFEFB8C8),
+            background      = Violet20,
+            surface         = Color(0xFF1E1E30),
+            onBackground    = Color(0xFFE6E1E5),
+            onSurface       = Color(0xFFE6E1E5),
+        )
+    } else {
+        lightColorScheme(
+            primary   = accent.lightPrimary,
+            secondary = Color(0xFF625B71),
+            tertiary  = Color(0xFF7D5260),
+        )
+    }
 
-private val LightColorScheme = lightColorScheme(
-    primary         = Purple40,
-    secondary       = Color(0xFF625B71),
-    tertiary        = Color(0xFF7D5260),
-)
+// ---------------------------------------------------------------------------
+// Theme composable
+// ---------------------------------------------------------------------------
 
 /**
  * Root Material 3 theme wrapper for MochiTV.
  *
- * @param darkTheme  Follows system dark-mode setting by default; override for previews.
+ * @param settings  Live [AppSettings] from [AppSettingsRepository]; controls
+ *                  theme mode, accent colour, font family, and font scale.
+ *                  Defaults to [AppSettings] for previews / tests.
  */
 @Composable
 fun MochiTVTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    settings: AppSettings = AppSettings(),
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val darkTheme = when (settings.themeMode) {
+        ThemeMode.DARK   -> true
+        ThemeMode.LIGHT  -> false
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content,
+    val colorScheme = buildColorScheme(darkTheme, settings.accentColor)
+    val typography  = buildTypography(settings.appFont)
+
+    // Apply font scale via Density — affects all sp-sized text without touching
+    // individual composables.
+    val baseDensity = LocalDensity.current
+    val scaledDensity = Density(
+        density   = baseDensity.density,
+        fontScale = settings.fontScale.scale,
     )
+
+    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography  = typography,
+            content     = content,
+        )
+    }
 }

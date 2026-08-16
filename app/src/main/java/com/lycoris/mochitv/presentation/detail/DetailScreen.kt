@@ -151,7 +151,6 @@ private fun DetailContent(
                 title = {
                     Text(
                         text = anime.title,
-                        fontFamily = com.lycoris.mochitv.presentation.theme.NunitoFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

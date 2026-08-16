@@ -88,6 +88,9 @@ dependencies {
     // Navigation
     implementation(libs.androidx.navigation.compose)
 
+    // DataStore — settings persistence
+    implementation(libs.datastore.preferences)
+
     // Hilt dependency injection
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

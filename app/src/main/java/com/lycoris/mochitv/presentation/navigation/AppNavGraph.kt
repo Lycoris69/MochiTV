@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -28,11 +29,13 @@ import com.lycoris.mochitv.presentation.downloads.DownloadsScreen
 import com.lycoris.mochitv.presentation.home.HomeScreen
 import com.lycoris.mochitv.presentation.library.LibraryScreen
 import com.lycoris.mochitv.presentation.player.PlayerScreen
+import com.lycoris.mochitv.presentation.settings.SettingsScreen
 
 sealed class Screen(val route: String) {
     data object Home      : Screen("home")
     data object Library   : Screen("library")
     data object Downloads : Screen("downloads")
+    data object Settings  : Screen("settings")
 
     data object Detail : Screen("detail/{animeId}") {
         fun createRoute(animeId: String) = "detail/${Uri.encode(animeId)}"
@@ -45,9 +48,17 @@ sealed class Screen(val route: String) {
 }
 
 private val bottomNavItems = listOf(
-    Triple(Screen.Home,      "Home",      Icons.Filled.Home),
-    Triple(Screen.Library,   "Library",   Icons.Filled.Bookmark),
-    Triple(Screen.Downloads, "Downloads", Icons.Filled.Download),
+    Triple(Screen.Home,      "Accueil",      Icons.Filled.Home),
+    Triple(Screen.Library,   "Bibliothèque", Icons.Filled.Bookmark),
+    Triple(Screen.Downloads, "Téléch.",      Icons.Filled.Download),
+    Triple(Screen.Settings,  "Paramètres",   Icons.Filled.Settings),
+)
+
+private val bottomNavRoutes = setOf(
+    Screen.Home.route,
+    Screen.Library.route,
+    Screen.Downloads.route,
+    Screen.Settings.route,
 )
 
 @Composable
@@ -57,11 +68,7 @@ fun AppNavGraph(
 ) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentDest = backStack?.destination
-    val showBottomBar = currentDest?.route in setOf(
-        Screen.Home.route,
-        Screen.Library.route,
-        Screen.Downloads.route,
-    )
+    val showBottomBar = currentDest?.route in bottomNavRoutes
 
     Scaffold(
         bottomBar = {
@@ -79,7 +86,7 @@ fun AppNavGraph(
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(icon, contentDescription = label) },
+                            icon  = { Icon(icon, contentDescription = label) },
                             label = { Text(label) },
                         )
                     }
@@ -89,7 +96,7 @@ fun AppNavGraph(
         modifier = modifier,
     ) { innerPadding ->
         NavHost(
-            navController = navController,
+            navController    = navController,
             startDestination = Screen.Home.route,
         ) {
             composable(Screen.Home.route) {
@@ -122,8 +129,12 @@ fun AppNavGraph(
                 )
             }
 
+            composable(Screen.Settings.route) {
+                SettingsScreen(modifier = Modifier.padding(innerPadding))
+            }
+
             composable(
-                route = Screen.Detail.route,
+                route     = Screen.Detail.route,
                 arguments = listOf(navArgument("animeId") { type = NavType.StringType }),
             ) {
                 DetailScreen(
@@ -135,7 +146,7 @@ fun AppNavGraph(
             }
 
             composable(
-                route = Screen.Player.route,
+                route     = Screen.Player.route,
                 arguments = listOf(
                     navArgument("episodeId") { type = NavType.StringType },
                     navArgument("animeId")   { type = NavType.StringType },
@@ -145,7 +156,7 @@ fun AppNavGraph(
                     onBack = { navController.popBackStack() },
                     onHome = {
                         navController.popBackStack(
-                            route = Screen.Home.route,
+                            route     = Screen.Home.route,
                             inclusive = false,
                         )
                     },

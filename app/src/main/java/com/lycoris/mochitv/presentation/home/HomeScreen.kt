@@ -73,10 +73,7 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "MochiTV",
-                        fontFamily = com.lycoris.mochitv.presentation.theme.NunitoFamily,
-                    )
+                    Text("MochiTV")
                 },
                 expandedHeight = 30.dp,
             )
