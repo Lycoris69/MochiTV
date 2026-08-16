@@ -22,8 +22,6 @@ fun UpdateDialog(
     onDismiss: () -> Unit,
     onDownload: (url: String) -> Unit,
 ) {
-    val downloadUrl = info.downloadUrl ?: info.releasePageUrl
-
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -40,7 +38,7 @@ fun UpdateDialog(
             Column {
                 Text(
                     text  = "MochiTV ${info.latestVersion} is available " +
-                            "(installé : ${BuildConfig.VERSION_NAME}).",
+                            "(installed: ${BuildConfig.VERSION_NAME}).",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (info.releaseNotes.isNotBlank()) {
@@ -57,7 +55,8 @@ fun UpdateDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onDownload(downloadUrl) }) {
+            // Always open the GitHub release page — user can download from there
+            TextButton(onClick = { onDownload(info.releasePageUrl) }) {
                 Text("Download")
             }
         },
