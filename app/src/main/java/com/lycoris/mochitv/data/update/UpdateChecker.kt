@@ -10,7 +10,7 @@ import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private const val GITHUB_REPO  = "Lycoris69/MochiTV"
+private const val GITHUB_REPO  = "Lycoris69/NoBoundRift"
 private const val RELEASES_API = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
 
 @Singleton
