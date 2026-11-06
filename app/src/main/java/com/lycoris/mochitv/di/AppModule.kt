@@ -158,7 +158,7 @@ abstract class AppModule {
         /**
          * Coil [ImageLoader] with a Referer interceptor.
          *
-         * voir-anime.to (and most anime CDNs) return 403 for image requests that
+         * voiranime.rip (and most anime CDNs) return 403 for image requests that
          * lack a matching Referer header. We set the Referer to the origin of each
          * requested image URL so Coil can load thumbnails from all scraped sources.
          */

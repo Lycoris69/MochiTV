@@ -18,36 +18,34 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import javax.inject.Inject
 
-private const val BASE_URL = "https://voir-anime.to/"
+private const val BASE_URL = "https://voiranime.rip/"
 
 /**
- * Scraper for [https://voir-anime.to/].
+ * Scraper for [https://voiranime.rip/].
  *
- * The site runs the Madara WordPress theme (wp-manga custom post type).
- * All pages are server-side rendered; no JS execution is required.
+ * The site was rebuilt (it used to be a Madara WordPress site at voir-anime.to).
+ * It is now a server-rendered custom site with an Anime-Sama-like layout.
  *
- * This site is predominantly French; the Accept-Language header is set
- * accordingly so that French-language metadata is returned.
+ * ## Key endpoints
+ * | Operation       | Method | URL                                                          |
+ * |-----------------|--------|--------------------------------------------------------------|
+ * | Search          | POST   | `/template-php/defaut/fetch.php` · body: `query=<term>`      |
+ * | Anime page      | GET    | `/{slug}/`                                                   |
+ * | Season page     | GET    | `/{slug}/{season}/` (lists every episode)                    |
+ * | Episode page    | GET    | `/{slug}/{season}/episode-{n}/{vostfr|vf}/`                  |
+ * | Latest releases | GET    | `/` (homepage sliders, only one page)                        |
  *
- * ## Verified CSS selectors (confirmed against live HTML, 2026-07-22)
- * | Page            | Selector                                          | Notes                                  |
- * |-----------------|---------------------------------------------------|----------------------------------------|
- * | Search results  | `div.row.c-tabs-item__content`                    | One row per series; all rows share a single `div.c-tabs-item` parent |
- * | Card link/title | `div.post-title a[href]`                          | Both href and display title            |
- * | Card thumbnail  | `div.tab-thumb img`                               | Standard `src` attribute (no lazy)     |
- * | Card genres     | `div.post-content_item.mg_genres .summary-content a` | Each genre is a link                |
- * | Card status     | `div.post-content_item.mg_status .summary-content`| "TERMINÉ" / "EN COURS" (French)       |
- * | Episode list    | `li.wp-manga-chapter`                             | Madara theme; episodes in static HTML  |
- * | Episode link    | `a[href]`                                         | Inside each `<li>`                     |
- * | Episode number  | Extracted from URL slug via last `\d+` match      | e.g. "naruto-220-vostfr" → 220         |
- * | Episode title   | `a` element text (trimmed)                        | e.g. "Naruto - 220 VOSTFR - 220"       |
- * | Latest releases | `div.page-item-detail`                            | Homepage widget; one card per series   |
- * | Latest thumb    | `div.item-thumb img[src]`                         | Direct `src`, no lazy-load             |
- * | Latest title    | `div.post-title.font-title a[href]`               | Also carries the anime page URL        |
- *
- * Synopsis, rating, and episode count are **not present** in search-result or
- * latest-release cards. The search URL pattern `?s={query}` is correct
- * (WordPress native search). Latest releases are sourced from the site root `/`.
+ * ## Selectors (confirmed against live HTML, 2026-11-06)
+ * | Data            | Selector / source                                            |
+ * |-----------------|--------------------------------------------------------------|
+ * | Search result   | `a.va-search-result` (+ `.va-search-result-title`, `img`)    |
+ * | Anime title     | `h1.hero-title`                                              |
+ * | Synopsis        | `#synopsisText`                                              |
+ * | Genres          | `.hero-genres .genre-link`                                   |
+ * | Seasons         | `a.season-card[href]`                                        |
+ * | Episodes        | `a.episode-card[href]` (`data-langs="vostfr vf"`)            |
+ * | Players         | `const readers = {"vostfr":[...],"vf":[...]}` in episode page|
+ * | Latest cards    | `div.xcard` (`a[href]`, `img.xcard-img`, `.xcard-title`)     |
  */
 class VoirAnimeScraper @Inject constructor(
     private val okHttpClient: OkHttpClient,
@@ -60,85 +58,76 @@ class VoirAnimeScraper @Inject constructor(
     // -------------------------------------------------------------------------
 
     override suspend fun search(query: String): List<Anime> = withContext(Dispatchers.IO) {
-        val url = "${BASE_URL}?s=${query.trim().replace(" ", "+")}"
-        val doc = fetchDocument(url)
+        val body = FormBody.Builder().add("query", query.trim()).build()
+        val request = Request.Builder()
+            .url("${BASE_URL}template-php/defaut/fetch.php")
+            .post(body)
+            .header("User-Agent", UserAgents.random())
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .build()
 
-        // The Madara theme wraps ALL results in ONE div.c-tabs-item parent.
-        // Each individual result is a div.row.c-tabs-item__content inside that parent.
-        doc.select("div.row.c-tabs-item__content").map { card ->
-            val href = card.select("div.post-title a[href]").attr("abs:href")
-            val slug = href.trimEnd('/').substringAfterLast('/')
+        val html = okHttpClient.newCall(request).execute().use { resp ->
+            check(resp.isSuccessful) { "VoirAnimeScraper: HTTP ${resp.code} on search" }
+            resp.body!!.string()
+        }
 
-            val thumbImg = card.select("div.tab-thumb img").firstOrNull()
-            val thumbnail = bestThumbnail(thumbImg)
-
-            val genres = card.select("div.post-content_item.mg_genres .summary-content a")
-                .map { it.text().trim() }
-                .filter { it.isNotBlank() }
-
-            val statusText = card.select("div.post-content_item.mg_status .summary-content")
-                .text().trim()
-
+        Jsoup.parseBodyFragment(html, BASE_URL).select("a.va-search-result").mapNotNull { el ->
+            val href = el.attr("abs:href").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val slug = slugOf(href)
+            if (slug.isBlank()) return@mapNotNull null
             Anime(
                 id = "voir_$slug",
-                title = card.select("div.post-title a").text().trim().ifBlank { slug },
-                thumbnailUrl = thumbnail,
-                synopsis = "",       // Not available in search cards
-                genres = genres,
-                rating = null,        // Not available in search cards
-                episodeCount = null,  // Not available in search cards
-                status = parseStatus(statusText),
+                title = el.select(".va-search-result-title").text().trim().ifBlank { slug },
+                thumbnailUrl = el.select("img").attr("abs:src"),
+                synopsis = "",
+                genres = emptyList(),
+                rating = null,
+                episodeCount = null,
+                status = AnimeStatus.UNKNOWN,
                 sourceUrl = href,
                 sourceSite = SourceSite.VOIR_ANIME,
             )
         }
     }
 
+    /**
+     * Loads the anime page, picks the first season and lists its episodes.
+     * Each episode links to its VOSTFR page (or VF when VOSTFR is not offered).
+     */
     override suspend fun getEpisodes(animePageUrl: String): List<Episode> = withContext(Dispatchers.IO) {
-        val doc = fetchDocument(animePageUrl)
-        val animeSlug = animePageUrl.trimEnd('/').substringAfterLast('/')
+        val animePage = fetchDocument(animePageUrl)
+        val animeSlug = slugOf(animePageUrl)
 
-        // Madara theme episode list: ul.version-chap > li.wp-manga-chapter
-        // The episode number is not in a dedicated element; it's embedded in the
-        // URL slug (e.g. "naruto-220-vostfr") and in the link text.  We extract
-        // it from the slug's last numeric group for reliability.
-        doc.select("li.wp-manga-chapter").mapIndexed { index, element ->
-            val href = element.select("a[href]").attr("abs:href")
-            val epSlug = href.trimEnd('/').substringAfterLast('/')
-            val epNum = Regex("""\d+""").findAll(epSlug).lastOrNull()?.value?.toIntOrNull()
+        val seasonUrl = animePage.select("a.season-card[href]").firstOrNull()?.attr("abs:href")
+            ?: return@withContext emptyList()
+
+        val seasonPage = fetchDocument(seasonUrl)
+        seasonPage.select("a.episode-card[href]").mapIndexed { index, card ->
+            var href = card.attr("abs:href")
+            val langs = card.attr("data-langs").split(" ").filter { it.isNotBlank() }
+            if (langs.isNotEmpty() && "vostfr" !in langs && "vf" in langs) {
+                href = href.replace("/vostfr/", "/vf/")
+            }
+            val epNum = Regex("""episode-(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
                 ?: (index + 1)
-            val epTitle = element.select("a").text().trim().ifBlank { null }
-
-            // Madara theme: release date is inside .chapter-release-date or .chapter-date,
-            // typically wrapped in an <i> element. Try the most specific selector first.
-            val releaseDate = element
-                .select(".chapter-release-date i, .chapter-date i, .chapter-release-date, .chapter-date")
-                .firstOrNull()
-                ?.text()
-                ?.trim()
-                ?.ifBlank { null }
 
             Episode(
                 id = "voir_ep_${animeSlug}_$epNum",
                 animeId = "voir_$animeSlug",
                 number = epNum,
-                title = epTitle,
-                thumbnailUrl = null, // Not present in episode list rows
+                title = card.select(".episode-title").text().trim().ifBlank { null },
+                thumbnailUrl = null,
                 durationSeconds = null,
                 pageUrl = href,
                 sourceSite = SourceSite.VOIR_ANIME,
-                releaseDate = releaseDate,
+                releaseDate = null,
             )
         }
     }
 
     override suspend fun getStreamUrl(episodePageUrl: String): String = withContext(Dispatchers.IO) {
         val episodePage = fetchDocument(episodePageUrl)
-
-        // Gather every candidate embed URL the page exposes and try each one through
-        // the extractor chain.  Sources are ranked: thisChapterSources (Madara JS
-        // variable, contains ALL available players) → player-switcher data-* attributes
-        // → static iframes → Madara AJAX endpoint.
         val embedUrls = collectAllEmbedUrls(episodePage, episodePageUrl)
 
         val extractors: List<StreamExtractor> = listOf(
@@ -155,221 +144,100 @@ class VoirAnimeScraper @Inject constructor(
             if (!result.isNullOrBlank()) return@withContext result
         }
 
-        // Last-resort: scan the episode page's own <script> blocks directly.
-        val scripts = episodePage.select("script").joinToString("\n") { it.data() }
-
-        Regex("""file\s*:\s*["']([^"']+\.(?:mp4|m3u8|mkv)[^"']*)["']""")
-            .find(scripts)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
-            ?.let { return@withContext it }
-
-        Regex("""(?:src|videoUrl|streamUrl)\s*=\s*["']([^"']+)["']""")
-            .find(scripts)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
-            ?.let { return@withContext it }
-
         error("VoirAnimeScraper: could not extract stream URL from $episodePageUrl")
     }
 
     /**
-     * Collects every candidate embed URL from an episode page, in priority order:
+     * Collects candidate embed URLs from an episode page, in priority order:
      *
-     * 1. **`thisChapterSources`** — Madara-standard JS object that lists ALL available
-     *    player sources, e.g. `{"1":"https://vidmoly.biz/...","2":"https://streamtape..."}`.
-     *    This is the primary source and is present even when no iframe is rendered.
+     * 1. **`readers` JS object** — `{"vostfr":[urls],"vf":[urls]}`. The language
+     *    matching the page URL comes first, the other language is a fallback.
+     * 2. Static `<iframe src>` / `data-src`.
      *
-     * 2. **Player-switcher data attributes** — `data-embed`, `data-video`, `data-url`,
-     *    `data-src`, `data-link` on `<a>` / `<li>` / `<div>` player-tab elements.
-     *
-     * 3. **Static iframes** — `<iframe src>` and `<iframe data-src>` (lazy-loaded).
-     *
-     * 4. **Madara AJAX** — POSTs to `wp-admin/admin-ajax.php` with the chapter nonce
-     *    to fetch the dynamically-loaded player HTML and its iframes.
-     *
-     * All results are deduplicated while preserving priority order.
+     * Results are deduplicated while preserving order.
      */
     private fun collectAllEmbedUrls(doc: Document, pageUrl: String): List<String> {
         val seen = linkedSetOf<String>()
-
         fun add(url: String) {
-            if (url.startsWith("http")) seen.add(url)
+            val u = if (url.startsWith("//")) "https:$url" else url
+            if (u.startsWith("http")) seen.add(u)
         }
 
-        // 1. thisChapterSources JS variable
         val scripts = doc.select("script").joinToString("\n") { it.data() }
-        Regex("""thisChapterSources\s*=\s*\{([^}]+)\}""").find(scripts)?.let { m ->
-            Regex(""""(https?://[^"]+)"""").findAll(m.groupValues[1])
-                .forEach { add(it.groupValues[1]) }
+        val readersJson = Regex("""readers\s*=\s*\{(.*?)\}\s*;""", RegexOption.DOT_MATCHES_ALL)
+            .find(scripts)?.groupValues?.get(1)
+        if (readersJson != null) {
+            val preferred = if ("/vf/" in pageUrl) "vf" else "vostfr"
+            val byLang = Regex(""""(\w+)"\s*:\s*\[(.*?)\]""", RegexOption.DOT_MATCHES_ALL)
+                .findAll(readersJson)
+                .associate { m ->
+                    m.groupValues[1] to Regex(""""([^"]+)"""").findAll(m.groupValues[2])
+                        .map { it.groupValues[1].replace("\\/", "/") }
+                        .toList()
+                }
+            byLang[preferred]?.forEach { add(it) }
+            byLang.filterKeys { it != preferred }.values.flatten().forEach { add(it) }
         }
 
-        // 2. Player-switcher elements with known data attributes
-        for (attr in listOf("data-embed", "data-video", "data-url", "data-src", "data-link")) {
-            doc.select("[$attr]").forEach { el ->
-                val v = el.attr(attr)
-                add(if (v.startsWith("//")) "https:$v" else v)
-            }
-        }
-
-        // 3. Static iframes (src + data-src)
         doc.select("iframe").forEach { el ->
-            listOf(el.attr("abs:src"), el.attr("abs:data-src")).forEach { add(it) }
-        }
-
-        // 4. Madara AJAX fallback
-        if (seen.isEmpty()) {
-            runCatching { fetchMadaraAjaxEmbeds(doc, pageUrl) }.getOrNull()
-                ?.forEach { add(it) }
+            add(el.attr("abs:src"))
+            add(el.attr("abs:data-src"))
         }
 
         return seen.toList()
     }
 
-    /**
-     * POSTs to `wp-admin/admin-ajax.php` (Madara AJAX reading endpoint) and
-     * returns all iframe embed URLs found in the response HTML.
-     *
-     * Used only when the static page has no resolvable embed URLs at all.
-     */
-    private fun fetchMadaraAjaxEmbeds(episodePage: Document, episodePageUrl: String): List<String> {
-        val scripts = episodePage.select("script").joinToString("\n") { it.data() }
-
-        val nonce = Regex("""chapter_ajax_nonce\s*=\s*['"]([^'"]+)['"]""")
-            .find(scripts)?.groupValues?.get(1)
-            ?: Regex(""""nonce"\s*:\s*"([a-f0-9]+)"""").find(scripts)?.groupValues?.get(1)
-            ?: return emptyList()
-
-        val chapterId = Regex("""chapter_id\s*[=:]\s*['"]?(\d+)['"]?""")
-            .find(scripts)?.groupValues?.get(1)
-            ?: return emptyList()
-
-        val formBody = FormBody.Builder()
-            .add("action", "manga_get_chapter_ajax")
-            .add("chapter_id", chapterId)
-            .add("nonce", nonce)
-            .build()
-
-        val request = Request.Builder()
-            .url("${BASE_URL}wp-admin/admin-ajax.php")
-            .post(formBody)
-            .header("User-Agent", UserAgents.random())
-            .header("Referer", episodePageUrl)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .build()
-
-        val html = okHttpClient.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) return emptyList()
-            resp.body?.string() ?: return emptyList()
-        }
-
-        val fragment = Jsoup.parseBodyFragment(html)
-        return fragment.select("iframe").flatMap { el ->
-            listOfNotNull(
-                el.attr("abs:src").takeIf { it.startsWith("http") },
-                el.attr("abs:data-src").takeIf { it.startsWith("http") },
-            )
-        }.distinct()
-    }
-
     override suspend fun getAnimeSynopsis(animePageUrl: String): String = withContext(Dispatchers.IO) {
         val doc = fetchDocument(animePageUrl)
-        // Madara theme: synopsis lives in div.summary__content (may contain <p> children)
-        doc.select("div.summary__content").text().trim()
-            .ifBlank { doc.select("div.description-summary").text().trim() }
+        doc.select("#synopsisText").text().trim()
+            .ifBlank { doc.select("meta[name=description]").attr("content").trim() }
     }
 
     /**
-     * Fetches a paginated latest-releases page and returns the anime cards.
-     *
-     * URL pattern: `https://voir-anime.to/` (page 1) or `https://voir-anime.to/page/{n}/`
-     * Selectors (confirmed 2026-07-22):
-     *  - Card root : `div.page-item-detail`
-     *  - Thumbnail : `div.item-thumb img` → `src` (no lazy-load)
-     *  - Title/URL : `div.post-title.font-title a[href]`
-     *
-     * Returns an empty list when [page] exceeds available pages (end of feed).
+     * Latest releases come from the homepage sliders (`div.xcard`). The site
+     * offers a single page, so [page] > 1 returns an empty list (end of feed).
+     * Cards appear in several sliders, so they are deduplicated by slug.
      */
     override suspend fun getLatestReleases(page: Int): List<Anime> = withContext(Dispatchers.IO) {
-        val url = if (page == 1) BASE_URL else "${BASE_URL}page/$page/"
-        val doc = fetchDocument(url)
+        if (page > 1) return@withContext emptyList()
+        val doc = fetchDocument(BASE_URL)
 
-        doc.select("div.page-item-detail").mapNotNull { card ->
-            val anchor = card.select("div.post-title.font-title a[href]").firstOrNull()
-                ?: return@mapNotNull null
+        doc.select("div.xcard").mapNotNull { card ->
+            val href = card.select("a[href]").firstOrNull()?.attr("abs:href")
+                ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val slug = slugOf(href)
+            if (slug.isBlank()) return@mapNotNull null
 
-            val href = anchor.attr("abs:href").takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-
-            val slug = href.trimEnd('/').substringAfterLast('/')
-            val title = anchor.text().trim().ifBlank { slug }
-
-            val imgEl = card.select("div.item-thumb img").firstOrNull()
-            val thumbnail = bestThumbnail(imgEl)
-
-            // Best-effort date extraction from Madara theme chapter list widget.
-            // The homepage card typically shows the latest chapter + its date in:
-            //   div.list-chapter > div.chapter-item > span.post-date
-            // Fall back through progressively broader selectors; yield null on failure.
-            val dateString =
-                card.select("div.chapter-item span.post-date").firstOrNull()?.text()?.trim()?.ifBlank { null }
-                    ?: card.select("span.post-date").firstOrNull()?.text()?.trim()?.ifBlank { null }
-                    ?: card.select("div.list-chapter .chapter-item span:not(.chapter)").firstOrNull()
-                        ?.text()?.trim()?.ifBlank { null }
-
+            val imgEl = card.select("img.xcard-img").firstOrNull()
             Anime(
                 id = "voir_$slug",
-                title = title,
-                thumbnailUrl = thumbnail,
-                synopsis = "",        // Not available in homepage cards
-                genres = emptyList(), // Not available in homepage cards
-                rating = null,        // Not available in homepage cards
-                episodeCount = null,  // Not available in homepage cards
+                title = card.select(".xcard-title").text().trim().ifBlank { slug },
+                thumbnailUrl = imgEl?.attr("abs:src").orEmpty(),
+                synopsis = "",
+                genres = emptyList(),
+                rating = null,
+                episodeCount = null,
                 status = AnimeStatus.UNKNOWN,
                 sourceUrl = href,
                 sourceSite = SourceSite.VOIR_ANIME,
-                lastReleaseDate = dateString,
+                lastReleaseDate = null,
             )
-        }
+        }.distinctBy { it.id }
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns the highest-resolution URL available for [imgEl].
-     *
-     * Parses the `srcset` attribute ("url 460w, url 110w, …"), picks the entry
-     * with the largest width descriptor, and falls back to plain `src` if
-     * `srcset` is absent or unparseable.
-     */
-    private fun bestThumbnail(imgEl: org.jsoup.nodes.Element?): String {
-        imgEl ?: return ""
-        val srcset = imgEl.attr("srcset").takeIf { it.isNotBlank() }
-        if (srcset != null) {
-            val best = srcset.split(",")
-                .mapNotNull { entry ->
-                    val parts = entry.trim().split("\\s+".toRegex())
-                    if (parts.size >= 2) {
-                        val w = parts.last().removeSuffix("w").toIntOrNull() ?: 0
-                        parts.first() to w
-                    } else null
-                }
-                .maxByOrNull { it.second }
-                ?.first
-            if (!best.isNullOrBlank()) {
-                // srcset URLs are already absolute on this site; make sure
-                return if (best.startsWith("http")) best
-                else "$BASE_URL${best.trimStart('/')}"
-            }
-        }
-        return (imgEl.attr("abs:data-src").takeIf { it.isNotBlank() }
-            ?: imgEl.attr("abs:src"))
-    }
+    /** First path segment of a site URL: `https://host/naruto/kai/` → `naruto`. */
+    private fun slugOf(url: String): String =
+        url.removePrefix(BASE_URL).trim('/').substringBefore('/')
 
     private fun fetchDocument(url: String): Document {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", UserAgents.random())
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            // French Accept-Language to receive proper localised content
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
             .build()
@@ -382,15 +250,7 @@ class VoirAnimeScraper @Inject constructor(
         }
     }
 
-    /**
-     * Fetches [url] and returns the raw response body as a string.
-     *
-     * Used for embed pages where we only need plain text/HTML for regex matching
-     * (no Jsoup DOM parsing required).  The [referer] is passed as the HTTP
-     * `Referer` header so that embed hosts that check the origin accept the request.
-     *
-     * @throws IllegalStateException if the HTTP response is not 2xx.
-     */
+    /** Fetches an embed page as plain text, sending [referer] for hosts that check origin. */
     private fun fetchRaw(url: String, referer: String): String {
         val request = Request.Builder()
             .url(url)
@@ -406,13 +266,5 @@ class VoirAnimeScraper @Inject constructor(
             }
             response.body!!.string()
         }
-    }
-
-    private fun parseStatus(raw: String): AnimeStatus = when {
-        raw.contains("en cours", ignoreCase = true)  -> AnimeStatus.ONGOING
-        raw.contains("terminé", ignoreCase = true)   -> AnimeStatus.COMPLETED
-        raw.contains("ongoing", ignoreCase = true)   -> AnimeStatus.ONGOING
-        raw.contains("completed", ignoreCase = true) -> AnimeStatus.COMPLETED
-        else -> AnimeStatus.UNKNOWN
     }
 }

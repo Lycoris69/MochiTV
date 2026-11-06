@@ -9,7 +9,7 @@ import javax.inject.Inject
 /**
  * Application entry-point. Implements [ImageLoaderFactory] so Coil uses our
  * Hilt-provided [ImageLoader] (which sets the correct Referer header for
- * voir-anime.to image CDN requests) everywhere in the app.
+ * voiranime.rip image CDN requests) everywhere in the app.
  */
 @HiltAndroidApp
 class MochiTVApp : Application(), ImageLoaderFactory {

@@ -78,7 +78,7 @@ interface AnimeRepository {
     suspend fun getEpisodeById(id: String): Result<Episode>
 
     /**
-     * Fetch the latest-updated anime from voir-anime.to's homepage.
+     * Fetch the latest-updated anime from voiranime.rip's homepage.
      *
      * Results are upserted into the local Room cache so they surface in
      * [observeCachedAnime] and the detail screen can look them up offline.

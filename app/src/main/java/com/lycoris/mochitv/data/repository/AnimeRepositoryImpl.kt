@@ -144,5 +144,5 @@ private val SourceSite.idPrefix: String
 private val SourceSite.baseUrl: String
     get() = when (this) {
         SourceSite.ANIME_SAMA -> "https://anime-sama.to/catalogue/"
-        SourceSite.VOIR_ANIME -> "https://voir-anime.to/"
+        SourceSite.VOIR_ANIME -> "https://voiranime.rip/"
     }

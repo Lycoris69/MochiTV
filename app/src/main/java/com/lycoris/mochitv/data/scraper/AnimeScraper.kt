@@ -51,7 +51,7 @@ interface AnimeScraper {
      * series (as many as the page exposes, typically 15–20).
      *
      * Sources whose homepage does not expose a meaningful latest-updates feed
-     * should return [emptyList] — the repository calls only the voir-anime
+     * should return [emptyList] — the repository calls only the voiranime.rip
      * scraper for this purpose, but every implementation must compile.
      *
      * @throws Exception on network errors or unexpected HTML structure.

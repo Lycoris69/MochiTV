@@ -4,7 +4,7 @@ An Android app for watching anime, built with Kotlin and Jetpack Compose. Conten
 
 **Sources**
 - [anime-sama.to](https://anime-sama.to/)
-- [voir-anime.to](https://voir-anime.to/)
+- [voiranime.rip](https://voiranime.rip/)
 
 > [!CAUTION]
 > **Personal use only. This app scrapes third-party websites without their consent (Not asked). Do not distribute, publish, or use commercially.**
@@ -130,9 +130,9 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 
 ### v1.2.0
 - Home screen cards are now all the same height regardless of title length
-- Home screen cards show the date of the latest episode release (scraped from voir-anime.to)
+- Home screen cards show the date of the latest episode release (scraped from voiranime.rip)
 - Series detail page shows a source badge ("Voir Anime" / "Anime-Sama") next to the status chip
-- Episode rows show the release date when available (voir-anime.to only)
+- Episode rows show the release date when available (voiranime.rip only)
 
 ### v1.1.8
 - Downloaded episodes now play fully offline — the player checks the Media3 cache first and skips all network calls when the content is already cached
@@ -196,7 +196,7 @@ IDs are source-prefixed (e.g. `animesama_naruto`, `voir_naruto`) so results from
 - Fixed empty video player — stream URLs now extracted via two-level iframe resolution
 
 ### v1.0.1
-- Latest releases section on the home screen (voir-anime.to)
+- Latest releases section on the home screen (voiranime.rip)
 - Anime thumbnails in search results and detail screen
 
 ### v1.0.0

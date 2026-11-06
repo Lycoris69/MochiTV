@@ -51,9 +51,9 @@ class ScraperLiveTest {
     fun testFetchRawVoirAnime() {
         println("\n========== VOIR-ANIME RAW HTML (search: naruto) ==========")
         val html = fetchRaw(
-            "https://voir-anime.to/?s=naruto",
+            "https://voiranime.rip/",
             "fr-FR,fr;q=0.9,en;q=0.8",
-            "https://voir-anime.to/",
+            "https://voiranime.rip/",
         )
         println(html.take(3000))
         println("==========================================================\n")
@@ -156,7 +156,7 @@ class ScraperLiveTest {
     fun testGetEpisodesVoirAnime() = runBlocking {
         println("\n========== VOIR-ANIME getEpisodes ==========")
         // Use the known Naruto detail URL directly
-        val animeUrl = "https://voir-anime.to/anime/naruto/"
+        val animeUrl = "https://voiranime.rip/naruto/"
         println("Anime URL: $animeUrl")
         try {
             val episodes = voirAnime.getEpisodes(animeUrl)
@@ -187,7 +187,7 @@ class ScraperLiveTest {
      * End-to-end test for [VoirAnimeScraper.getStreamUrl].
      *
      * Flow:
-     *   1. Search "naruto" on voir-anime.to and take the first result.
+     *   1. Search "naruto" on voiranime.rip and take the first result.
      *   2. Fetch its episode list and take the last entry (episode 1 on voir-anime
      *      appears at the bottom of the list, newest-first order).
      *   3. Call getStreamUrl and assert the result is a playable URL.

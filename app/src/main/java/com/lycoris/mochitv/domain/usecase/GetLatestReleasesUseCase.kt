@@ -5,7 +5,7 @@ import com.lycoris.mochitv.domain.repository.AnimeRepository
 import javax.inject.Inject
 
 /**
- * Use case: retrieve the latest-updated anime series from voir-anime.to.
+ * Use case: retrieve the latest-updated anime series from voiranime.rip.
  *
  * Delegates to [AnimeRepository.getLatestReleases] and keeps the ViewModel
  * free of repository concerns.  If the fetch strategy changes (e.g. adding a
